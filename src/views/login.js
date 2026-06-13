@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase.js';
-import { el } from '../lib/ui.js';
+import { el, asset } from '../lib/ui.js';
 
 export function renderLogin(onSuccess) {
   const app = document.getElementById('app');
@@ -7,8 +7,8 @@ export function renderLogin(onSuccess) {
     <div class="login-page">
       <div class="login-card">
         <div class="login-logo">
-          <span class="mark">TA</span>
-          <span class="name">TAMA <span>· Dashboard</span></span>
+          <img class="brand-light" src="${asset('brand/logo.svg')}" alt="TAMA Studios" />
+          <img class="brand-dark" src="${asset('brand/logo-white.svg')}" alt="TAMA Studios" />
         </div>
         <h1>Bienvenido de nuevo</h1>
         <p class="sub">Inicia sesión para acceder al panel</p>

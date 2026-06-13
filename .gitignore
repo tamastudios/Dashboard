@@ -12,3 +12,6 @@ dist/
 # sistema
 .DS_Store
 Thumbs.db
+
+# kit de marca original (los assets usados ya están en public/)
+tama-studios-web-assets/

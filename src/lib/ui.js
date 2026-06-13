@@ -9,6 +9,9 @@ export function esc(str) {
   return d.innerHTML;
 }
 
+/** Ruta a un archivo de /public respetando la base del despliegue (/Dashboard/). */
+export const asset = (p) => import.meta.env.BASE_URL + p.replace(/^\//, '');
+
 /**
  * Devuelve una URL segura para usar en href/src.
  * Bloquea esquemas peligrosos (javascript:, data:, vbscript:, file:)

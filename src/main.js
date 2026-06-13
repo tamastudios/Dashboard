@@ -2,7 +2,7 @@ import './styles/main.css';
 import { supabase, configMissing } from './lib/supabase.js';
 import { state, loadAll, teardown, onChange } from './lib/store.js';
 import { initTheme, toggleTheme, getTheme } from './lib/theme.js';
-import { esc, avatarHTML, roleLabel, ICONS, debounce } from './lib/ui.js';
+import { esc, avatarHTML, roleLabel, ICONS, debounce, asset } from './lib/ui.js';
 import { renderLogin, renderSetup } from './views/login.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderCompanies } from './views/companies.js';
@@ -80,14 +80,16 @@ function renderShell() {
       <div class="sb-overlay" id="sb-overlay"></div>
       <aside class="sidebar">
         <div class="sb-brand">
-          <span class="mark">TA</span>
-          <span class="name">TAMA <span>· Dashboard</span></span>
+          <img class="iso brand-light" src="${asset('brand/isotipo.svg')}" alt="" />
+          <img class="iso brand-dark" src="${asset('brand/isotipo-white.svg')}" alt="" />
+          <span class="name">TAMA <span>· Studios</span></span>
         </div>
         <nav class="sb-nav" id="sb-nav">
           ${NAV.map(n => `<button class="sb-link" data-view="${n.id}">${n.icon}<span>${n.label}</span></button>`).join('')}
         </nav>
         <div class="sb-foot">
           <button class="sb-link" id="theme-toggle">${getTheme() === 'dark' ? ICONS.sun : ICONS.moon}<span>${getTheme() === 'dark' ? 'Modo claro' : 'Modo oscuro'}</span></button>
+          <div class="sb-copy">© ${new Date().getFullYear()} TAMA Studios · Uso interno</div>
         </div>
       </aside>
 
