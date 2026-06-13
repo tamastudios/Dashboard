@@ -1,0 +1,14 @@
+# dependencias
+node_modules/
+
+# build
+dist/
+
+# variables de entorno — NUNCA subir claves
+.env
+.env.local
+.env.*.local
+
+# sistema
+.DS_Store
+Thumbs.db
