@@ -7,7 +7,32 @@ por correo.
 
 ## Requisitos
 - Cuenta gratuita en [resend.com](https://resend.com) (100 emails/día gratis).
-- [Supabase CLI](https://supabase.com/docs/guides/cli) instalado.
+
+> ⚠️ Sin un dominio verificado en Resend, solo puedes enviar emails al **correo
+> de tu propia cuenta de Resend** (modo prueba) y el remitente es
+> `onboarding@resend.dev`. Para enviar a todo el equipo, verifica tu dominio en
+> Resend (Domains → Add domain) y pon `REMINDER_FROM` con ese dominio.
+
+---
+
+## Opción A — Sin instalar nada (panel web de Supabase) ✅ recomendada
+
+1. **Secret de la API key**: en Supabase → *Edge Functions* → *Secrets* (o
+   *Project Settings → Edge Functions → Add new secret*):
+   - `RESEND_API_KEY` = tu clave de Resend
+   - (opcional) `REMINDER_FROM` = `TAMA Studios <avisos@tudominio.com>`
+
+2. **Crear la función**: Supabase → *Edge Functions* → *Deploy a new function* →
+   *Via editor*. Nómbrala `daily-reminders` y pega el contenido de
+   [`daily-reminders/index.ts`](daily-reminders/index.ts). Deploy.
+
+3. **Programar el cron**: ver el paso 4 más abajo.
+
+---
+
+## Opción B — Con Supabase CLI
+
+Requiere [Supabase CLI](https://supabase.com/docs/guides/cli) instalado.
 
 ## Pasos
 
