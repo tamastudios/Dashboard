@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase.js';
 import { el, asset } from '../lib/ui.js';
 
-export function renderLogin(onSuccess) {
+export function renderLogin(onSuccess, notice = null) {
   const app = document.getElementById('app');
   app.innerHTML = `
     <div class="login-page">
@@ -12,6 +12,7 @@ export function renderLogin(onSuccess) {
         </div>
         <h1>Bienvenido de nuevo</h1>
         <p class="sub">Inicia sesión para acceder al panel</p>
+        ${notice ? `<div class="login-notice">🔒 ${notice}</div>` : ''}
         <div class="login-err" id="login-err"></div>
         <form id="login-form" novalidate>
           <div class="fld">

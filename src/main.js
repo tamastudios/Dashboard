@@ -2,6 +2,7 @@ import './styles/main.css';
 import { supabase, configMissing } from './lib/supabase.js';
 import { state, loadAll, teardown, onChange } from './lib/store.js';
 import { initTheme, toggleTheme, getTheme } from './lib/theme.js';
+import { startIdle, stopIdle, isExpiredOnLoad, clearActivity } from './lib/idle.js';
 import { esc, avatarHTML, roleLabel, ICONS, debounce, asset } from './lib/ui.js';
 import { renderLogin, renderSetup } from './views/login.js';
 import { renderDashboard } from './views/dashboard.js';
@@ -30,6 +31,7 @@ const NAV = [
 
 let current = 'dashboard';
 let unsubscribe = null;
+let idleNotice = false;
 
 /* ============================================================
    ARRANQUE
@@ -37,12 +39,29 @@ let unsubscribe = null;
 async function boot() {
   if (configMissing) { renderSetup(); return; }
   const { data } = await supabase.auth.getSession();
-  if (data.session) await enterApp(data.session.user);
-  else renderLogin(enterApp);
+  if (data.session) {
+    if (isExpiredOnLoad()) {
+      // la sesión estaba abierta pero llevaba >5 min sin uso → cerrar
+      clearActivity();
+      await supabase.auth.signOut();
+      renderLogin(enterApp, 'Tu sesión se cerró por inactividad.');
+    } else {
+      await enterApp(data.session.user);
+    }
+  } else {
+    renderLogin(enterApp);
+  }
 
   supabase.auth.onAuthStateChange((event) => {
     if (event === 'SIGNED_OUT') logout();
   });
+}
+
+/** Se llama cuando se cumplen los 5 min de inactividad. */
+function handleIdleTimeout() {
+  idleNotice = true;
+  clearActivity();
+  supabase.auth.signOut();   // dispara SIGNED_OUT → logout()
 }
 
 async function enterApp(user) {
@@ -62,12 +81,17 @@ async function enterApp(user) {
   renderShell();
   // re-render de la vista actual cuando cambian los datos (realtime)
   unsubscribe = onChange(debounce(() => renderView(), 60));
+  // cierre de sesión automático tras 5 min de inactividad
+  startIdle(handleIdleTimeout);
 }
 
 function logout() {
+  stopIdle();
   if (unsubscribe) { unsubscribe(); unsubscribe = null; }
   teardown();
-  renderLogin(enterApp);
+  const msg = idleNotice ? 'Tu sesión se cerró por inactividad.' : null;
+  idleNotice = false;
+  renderLogin(enterApp, msg);
 }
 
 /* ============================================================

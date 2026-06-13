@@ -116,6 +116,11 @@ img { max-width: 100%; display: block; }
   padding: 10px 12px; font-size: .85rem; margin-bottom: 14px; display: none;
 }
 .login-err.show { display: block; }
+.login-notice {
+  background: color-mix(in srgb, var(--mint-bright) 14%, transparent);
+  color: var(--ink); border: 1px solid color-mix(in srgb, var(--mint-bright) 35%, transparent);
+  border-radius: 8px; padding: 10px 12px; font-size: .85rem; margin-bottom: 14px;
+}
 .login-foot { margin-top: 20px; font-size: .8rem; color: var(--muted); text-align: center; }
 
 /* setup screen (sin variables de entorno) */
