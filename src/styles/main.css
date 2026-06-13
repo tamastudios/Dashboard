@@ -170,7 +170,7 @@ img { max-width: 100%; display: block; }
   border-bottom: 1px solid var(--line);
   display: flex; align-items: center; gap: 14px; padding: 0 24px;
 }
-.hd-burger { display: none; }
+.header .hd-burger { display: none; }
 .hd-search { position: relative; flex: 1; max-width: 420px; }
 .hd-search input {
   width: 100%; background: var(--surface); border: 1px solid var(--line);
@@ -513,7 +513,7 @@ tr:hover .row-actions { opacity: 1; }
     opacity: 0; pointer-events: none; transition: opacity .25s;
   }
   body.sb-open .sb-overlay { opacity: 1; pointer-events: auto; }
-  .hd-burger { display: grid; }
+  .header .hd-burger { display: grid; }
   .hd-user .uname, .hd-user .urole { display: none; }
   .view { padding: 20px 14px 50px; }
   .detail-grid { grid-template-columns: 1fr; }
