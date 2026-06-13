@@ -3,13 +3,13 @@
    y modal de detalle de tarea con comentarios.
    ============================================================ */
 import {
-  el, esc, openModal, toast, todayISO, confirmDialog,
+  el, esc, openModal, toast, todayISO, confirmDialog, safeUrl,
   TASK_STATUSES, PRIORITIES, COMPANY_STATUSES,
   statusMeta, priorityMeta, companyStatusMeta, chip, fmtDate, avatarHTML, relTime
 } from '../lib/ui.js';
 import {
   state, createCompany, updateCompany, createTask, updateTask, deleteTask,
-  companyById, profileById, loadComments, addComment, onChange
+  companyById, profileById, loadComments, addComment, onChange, isStaff
 } from '../lib/store.js';
 
 const opt = (list, sel) => list.map(o =>
@@ -174,7 +174,7 @@ export async function taskDetailModal(taskId) {
         <div class="d-item"><div class="l">Empresa</div><div>${comp ? esc(comp.name) : '—'}</div></div>
         <div class="d-item"><div class="l">Responsable</div><div style="display:flex;align-items:center;gap:7px">${assignee ? avatarHTML(assignee, 'sm') + esc(assignee.name || assignee.email) : '—'}</div></div>
         <div class="d-item"><div class="l">Fecha límite</div><div>${fmtDate(t.due_date)}</div></div>
-        <div class="d-item"><div class="l">Enlace</div><div>${t.link_url ? `<a href="${esc(t.link_url)}" target="_blank" rel="noopener" style="color:var(--primary)">Abrir ↗</a>` : '—'}</div></div>
+        <div class="d-item"><div class="l">Enlace</div><div>${t.link_url && safeUrl(t.link_url) ? `<a href="${esc(safeUrl(t.link_url))}" target="_blank" rel="noopener nofollow" style="color:var(--primary)">Abrir ↗</a>` : '—'}</div></div>
       </div>
       ${t.description ? `<div class="detail-desc">${esc(t.description)}</div>` : ''}
       ${labels}
@@ -223,8 +223,9 @@ export async function taskDetailModal(taskId) {
   const foot = el('div', { style: 'display:flex;gap:10px;width:100%;justify-content:space-between' });
   const left = el('div', { style: 'display:flex;gap:8px' });
   const editBtn = el('button', { class: 'btn btn-ghost btn-sm' }, 'Editar');
-  const delBtn = el('button', { class: 'btn btn-ghost btn-sm', style: 'color:var(--red)' }, 'Eliminar');
-  left.append(editBtn, delBtn);
+  left.append(editBtn);
+  const delBtn = isStaff() ? el('button', { class: 'btn btn-ghost btn-sm', style: 'color:var(--red)' }, 'Eliminar') : null;
+  if (delBtn) left.append(delBtn);
   const doneBtn = el('button', { class: 'btn btn-primary btn-sm' },
     t.status === 'completada' ? 'Reabrir' : 'Marcar completada');
   foot.append(left, doneBtn);
@@ -233,7 +234,7 @@ export async function taskDetailModal(taskId) {
   paint();
 
   editBtn.addEventListener('click', () => { m.close(); taskModal(t); });
-  delBtn.addEventListener('click', async () => {
+  delBtn?.addEventListener('click', async () => {
     if (await confirmDialog(`Se eliminará la tarea "${t.title}".`)) {
       try { await deleteTask(t.id); toast('Tarea eliminada'); m.close(); }
       catch { toast('No se pudo eliminar', 'err'); }

@@ -133,8 +133,10 @@ create trigger on_auth_user_created
 
 -- ============================================================
 -- ROW LEVEL SECURITY
--- Modelo: cualquier miembro autenticado del equipo puede ver y
--- editar los datos compartidos (es una herramienta interna).
+-- Modelo por rol:
+--   · admin / socio  → acceso completo (incluido borrar)
+--   · colaborador    → puede ver, crear y editar, pero NO borrar
+--                      empresas ni tareas.
 -- Nadie sin sesión accede a nada.
 -- ============================================================
 alter table public.profiles     enable row level security;
@@ -143,24 +145,68 @@ alter table public.tasks        enable row level security;
 alter table public.comments     enable row level security;
 alter table public.activity_log enable row level security;
 
+-- Función auxiliar: ¿el usuario actual es admin o socio?
+create or replace function public.is_staff()
+returns boolean
+language sql security definer set search_path = public stable
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role in ('admin','socio')
+  );
+$$;
+
 -- PROFILES: todos los autenticados pueden leer; cada uno edita el suyo;
 -- los admin pueden editar cualquiera (p. ej. cambiar roles).
-create policy "profiles_read"   on public.profiles for select to authenticated using (true);
+drop policy if exists "profiles_read"          on public.profiles;
+drop policy if exists "profiles_update_self"   on public.profiles;
+drop policy if exists "profiles_admin_update"  on public.profiles;
+create policy "profiles_read" on public.profiles for select to authenticated using (true);
 create policy "profiles_update_self" on public.profiles for update to authenticated
   using (auth.uid() = id) with check (auth.uid() = id);
 create policy "profiles_admin_update" on public.profiles for update to authenticated
   using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
 
--- COMPANIES / TASKS / COMMENTS / ACTIVITY:
--- acceso completo para cualquier usuario autenticado del equipo.
-create policy "companies_all" on public.companies for all to authenticated
-  using (true) with check (true);
-create policy "tasks_all" on public.tasks for all to authenticated
-  using (true) with check (true);
-create policy "comments_all" on public.comments for all to authenticated
-  using (true) with check (true);
+-- COMPANIES: ver/crear/editar cualquiera; borrar solo admin o socio.
+drop policy if exists "companies_all"    on public.companies;
+drop policy if exists "companies_read"   on public.companies;
+drop policy if exists "companies_insert" on public.companies;
+drop policy if exists "companies_update" on public.companies;
+drop policy if exists "companies_delete" on public.companies;
+create policy "companies_read"   on public.companies for select to authenticated using (true);
+create policy "companies_insert" on public.companies for insert to authenticated with check (true);
+create policy "companies_update" on public.companies for update to authenticated using (true) with check (true);
+create policy "companies_delete" on public.companies for delete to authenticated using (public.is_staff());
+
+-- TASKS: ver/crear/editar cualquiera; borrar solo admin o socio.
+drop policy if exists "tasks_all"    on public.tasks;
+drop policy if exists "tasks_read"   on public.tasks;
+drop policy if exists "tasks_insert" on public.tasks;
+drop policy if exists "tasks_update" on public.tasks;
+drop policy if exists "tasks_delete" on public.tasks;
+create policy "tasks_read"   on public.tasks for select to authenticated using (true);
+create policy "tasks_insert" on public.tasks for insert to authenticated with check (true);
+create policy "tasks_update" on public.tasks for update to authenticated using (true) with check (true);
+create policy "tasks_delete" on public.tasks for delete to authenticated using (public.is_staff());
+
+-- COMMENTS: ver todos; solo puedes crear/editar comentarios como tú mismo;
+-- borrar el propio o si eres admin/socio.
+drop policy if exists "comments_all"    on public.comments;
+drop policy if exists "comments_read"   on public.comments;
+drop policy if exists "comments_insert" on public.comments;
+drop policy if exists "comments_update" on public.comments;
+drop policy if exists "comments_delete" on public.comments;
+create policy "comments_read"   on public.comments for select to authenticated using (true);
+create policy "comments_insert" on public.comments for insert to authenticated with check (author = auth.uid());
+create policy "comments_update" on public.comments for update to authenticated using (author = auth.uid()) with check (author = auth.uid());
+create policy "comments_delete" on public.comments for delete to authenticated using (author = auth.uid() or public.is_staff());
+
+-- ACTIVITY_LOG: lectura para todos; al insertar, el user_id DEBE ser el tuyo
+-- (impide falsificar la autoría de los registros).
+drop policy if exists "activity_read"   on public.activity_log;
+drop policy if exists "activity_insert" on public.activity_log;
 create policy "activity_read"   on public.activity_log for select to authenticated using (true);
-create policy "activity_insert" on public.activity_log for insert to authenticated with check (true);
+create policy "activity_insert" on public.activity_log for insert to authenticated with check (user_id = auth.uid());
 
 -- ============================================================
 -- REALTIME: publicar cambios de estas tablas

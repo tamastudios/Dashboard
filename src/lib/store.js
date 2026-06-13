@@ -21,6 +21,8 @@ export function onChange(fn) { listeners.add(fn); return () => listeners.delete(
 function emit() { listeners.forEach(fn => { try { fn(); } catch (e) { console.error(e); } }); }
 
 /* ---------- helpers ---------- */
+/** true si el usuario actual es admin o socio (puede borrar). Los colaboradores no. */
+export const isStaff = () => state.me?.role === 'admin' || state.me?.role === 'socio';
 export const profileById = id => state.profiles.find(p => p.id === id) || null;
 export const companyById = id => state.companies.find(c => c.id === id) || null;
 export const taskById = id => state.tasks.find(t => t.id === id) || null;

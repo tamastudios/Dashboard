@@ -9,6 +9,20 @@ export function esc(str) {
   return d.innerHTML;
 }
 
+/**
+ * Devuelve una URL segura para usar en href/src.
+ * Bloquea esquemas peligrosos (javascript:, data:, vbscript:, file:)
+ * que permitirían ejecutar código. Permite http/https/mailto y, si no
+ * hay esquema, asume https. El resultado debe pasarse igualmente por esc().
+ */
+export function safeUrl(url) {
+  const t = (url == null ? '' : String(url)).trim();
+  if (!t) return '';
+  if (/^(https?:|mailto:)/i.test(t)) return t;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(t)) return '';   // cualquier otro esquema → bloqueado
+  return 'https://' + t.replace(/^\/+/, '');         // sin esquema → https://
+}
+
 export function el(tag, attrs, html) {
   const n = document.createElement(tag);
   if (attrs) for (const [k, v] of Object.entries(attrs)) {
@@ -95,7 +109,10 @@ export const chip = (meta) =>
 
 export function avatarHTML(profile, size = '') {
   if (!profile) return `<span class="avatar ${size}">?</span>`;
-  if (profile.avatar_url) return `<span class="avatar ${size}"><img src="${esc(profile.avatar_url)}" alt=""></span>`;
+  if (profile.avatar_url) {
+    const safe = safeUrl(profile.avatar_url);
+    if (safe) return `<span class="avatar ${size}"><img src="${esc(safe)}" alt=""></span>`;
+  }
   const initials = (profile.name || profile.email || '?')
     .split(/\s+/).slice(0, 2).map(w => w[0]).join('');
   return `<span class="avatar ${size}">${esc(initials)}</span>`;

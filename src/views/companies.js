@@ -1,8 +1,8 @@
 import {
-  esc, chip, fmtDate, avatarHTML, confirmDialog, toast, debounce,
+  esc, chip, fmtDate, avatarHTML, confirmDialog, toast, debounce, safeUrl,
   companyStatusMeta, priorityMeta, COMPANY_STATUSES, ICONS
 } from '../lib/ui.js';
-import { state, profileById, deleteCompany } from '../lib/store.js';
+import { state, profileById, deleteCompany, isStaff } from '../lib/store.js';
 import { companyModal } from './forms.js';
 
 let filters = { q: '', status: 'all', sort: 'created_desc' };
@@ -79,7 +79,7 @@ function paint(root) {
           return `<tr data-id="${c.id}">
             <td>
               <div style="font-weight:600">${esc(c.name)}</div>
-              ${c.website ? `<a href="${esc(c.website)}" target="_blank" rel="noopener" style="font-size:.78rem;color:var(--primary)" onclick="event.stopPropagation()">${esc(c.website.replace(/^https?:\/\//, ''))}</a>` : ''}
+              ${c.website && safeUrl(c.website) ? `<a href="${esc(safeUrl(c.website))}" target="_blank" rel="noopener nofollow" style="font-size:.78rem;color:var(--primary)" onclick="event.stopPropagation()">${esc(c.website.replace(/^https?:\/\//, ''))}</a>` : ''}
             </td>
             <td>
               ${c.contact_person ? `<div>${esc(c.contact_person)}</div>` : ''}
@@ -92,7 +92,7 @@ function paint(root) {
             <td style="color:var(--muted);font-size:.82rem">${fmtDate(c.created_at)}</td>
             <td><div class="row-actions">
               <button class="icon-btn edit" title="Editar">${ICONS.edit}</button>
-              <button class="icon-btn del" title="Eliminar" style="color:var(--red)">${ICONS.trash}</button>
+              ${isStaff() ? `<button class="icon-btn del" title="Eliminar" style="color:var(--red)">${ICONS.trash}</button>` : ''}
             </div></td>
           </tr>`;
         }).join('')}
@@ -102,7 +102,7 @@ function paint(root) {
   body.querySelectorAll('tbody tr').forEach(tr => {
     const c = state.companies.find(x => x.id === tr.dataset.id);
     tr.querySelector('.edit').addEventListener('click', e => { e.stopPropagation(); companyModal(c); });
-    tr.querySelector('.del').addEventListener('click', async e => {
+    tr.querySelector('.del')?.addEventListener('click', async e => {
       e.stopPropagation();
       const linked = state.tasks.filter(t => t.company_id === c.id).length;
       const warn = linked ? ` Tiene ${linked} tarea(s) asociada(s) que quedarán sin empresa.` : '';
