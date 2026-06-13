@@ -410,6 +410,28 @@ tr:hover .row-actions { opacity: 1; }
 .stat-icon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 12px; }
 .stat-icon svg { width: 18px; height: 18px; }
 
+/* gráficas */
+.charts-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
+@media (max-width: 980px) { .charts-grid { grid-template-columns: 1fr; } }
+.chart-bars { display: flex; flex-direction: column; gap: 8px; }
+.chart-xlabels { display: flex; font-size: .7rem; color: var(--muted); font-weight: 600; }
+.chart-donut-wrap { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.chart-donut { position: relative; flex: none; }
+.donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.donut-total { font-size: 1.5rem; font-weight: 800; line-height: 1; }
+.donut-lbl { font-size: .7rem; color: var(--muted); }
+.chart-legend { display: flex; flex-direction: column; gap: 6px; font-size: .82rem; flex: 1; min-width: 110px; }
+.legend-item { display: flex; align-items: center; gap: 7px; color: var(--muted); }
+.legend-item b { color: var(--ink); margin-left: auto; }
+.legend-dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+.chart-empty { color: var(--muted); font-size: .85rem; }
+.chart-hbars { display: flex; flex-direction: column; gap: 10px; }
+.hbar-row { display: flex; align-items: center; gap: 10px; font-size: .82rem; }
+.hbar-label { width: 70px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.hbar-track { flex: 1; height: 8px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
+.hbar-fill { height: 100%; border-radius: 99px; transition: width .4s; min-width: 2px; }
+.hbar-value { width: 22px; text-align: right; flex: none; font-weight: 700; color: var(--muted); }
+
 .dash-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; align-items: start; }
 @media (max-width: 980px) { .dash-grid { grid-template-columns: 1fr; } }
 .dash-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }

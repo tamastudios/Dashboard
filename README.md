@@ -19,9 +19,16 @@ No es una app local: usa una base de datos en la nube (Supabase) y los cambios d
 - **Equipo**: carga de trabajo, tareas hechas/pendientes/vencidas y próximas entregas por persona.
 - **Actividad**: historial agrupado por día (quién hizo qué y cuándo).
 - **Ajustes**: perfil, tema claro/oscuro y gestión de roles (admin).
-- **Tiempo real** en empresas, tareas, comentarios y actividad.
+- **Tiempo real** en empresas, tareas, comentarios, actividad y notificaciones.
+- **Notificaciones in-app** (campana) cuando te asignan una tarea o comentan en ella.
+- **Recordatorios por email** opcionales de tareas que vencen (Edge Function, ver `supabase/functions/`).
+- **Recuperar contraseña** por email.
+- **Indicador de conexión**: avisa si se pierde la conexión y reconecta solo.
+- **Gráficas** en el dashboard: completadas por semana, distribución por estado y carga por persona.
+- **Cierre de sesión automático** por inactividad.
 - **UX**: toasts, estados de carga, estados vacíos, confirmación antes de borrar, búsqueda global, filtros y ordenación.
 - **Modo claro y oscuro**, responsive (escritorio, tablet y móvil).
+- **Seguridad**: permisos por rol (RLS), URLs saneadas contra XSS, hash de contraseñas en Supabase Auth.
 
 ---
 

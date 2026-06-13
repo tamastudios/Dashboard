@@ -1,9 +1,31 @@
 import {
   esc, chip, fmtDate, relTime, avatarHTML, isOverdue,
-  statusMeta, priorityMeta, ICONS
+  statusMeta, priorityMeta, TASK_STATUSES, ICONS
 } from '../lib/ui.js';
 import { state, companyById, profileById } from '../lib/store.js';
 import { taskModal, taskDetailModal } from './forms.js';
+import { barChart, donutChart, hbarChart } from '../lib/charts.js';
+
+const CHART_COLORS = {
+  gray: '#94a3b8', blue: '#3b82f6', purple: '#a855f7', red: '#ef4444', green: '#22c55e'
+};
+
+/** Tareas completadas en cada una de las últimas 6 semanas. */
+function completedByWeek() {
+  const weeks = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const start = new Date(now);
+    start.setDate(now.getDate() - now.getDay() + 1 - i * 7); // lunes de esa semana
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start); end.setDate(start.getDate() + 7);
+    const count = state.tasks.filter(t =>
+      t.completed_at && new Date(t.completed_at) >= start && new Date(t.completed_at) < end).length;
+    const label = i === 0 ? 'Esta' : `-${i}`;
+    weeks.push({ label, value: count, color: 'var(--primary)' });
+  }
+  return weeks;
+}
 
 export function renderDashboard(root, nav) {
   const tasks = state.tasks;
@@ -44,6 +66,28 @@ export function renderDashboard(root, nav) {
       ${stat(progress, 'En progreso', ICONS.activity, 'blue')}
       ${stat(completed, 'Completadas', ICONS.check, 'purple')}
       ${stat(overdue.length, 'Vencidas / urgentes', ICONS.alert, 'red')}
+    </div>
+
+    <div class="charts-grid">
+      <div class="card">
+        <h2 class="card-title">Completadas por semana</h2>
+        ${barChart(completedByWeek(), { height: 130 })}
+      </div>
+      <div class="card">
+        <h2 class="card-title">Tareas por estado</h2>
+        ${donutChart(TASK_STATUSES.map(s => ({
+          label: s.label,
+          value: state.tasks.filter(t => t.status === s.id).length,
+          color: CHART_COLORS[s.color]
+        })))}
+      </div>
+      <div class="card">
+        <h2 class="card-title">Carga por persona</h2>
+        ${hbarChart(state.profiles.map(p => ({
+          label: (p.name || p.email || '?').split(' ')[0],
+          value: state.tasks.filter(t => t.assigned_to === p.id && t.status !== 'completada').length
+        })))}
+      </div>
     </div>
 
     <div class="dash-grid">
