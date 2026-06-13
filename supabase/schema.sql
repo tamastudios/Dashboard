@@ -105,6 +105,22 @@ create table public.activity_log (
 create index activity_created_idx on public.activity_log(created_at desc);
 
 -- ============================================================
+-- NOTIFICATIONS — avisos in-app por usuario
+-- ============================================================
+create table public.notifications (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  actor_name  text,
+  type        text,
+  message     text not null,
+  entity_type text,
+  entity_id   uuid,
+  read        boolean not null default false,
+  created_at  timestamptz not null default now()
+);
+create index notifications_user_idx on public.notifications(user_id, read, created_at desc);
+
+-- ============================================================
 -- TRIGGER: crear perfil automáticamente al registrar un usuario
 -- ============================================================
 create or replace function public.handle_new_user()
@@ -139,11 +155,12 @@ create trigger on_auth_user_created
 --                      empresas ni tareas.
 -- Nadie sin sesión accede a nada.
 -- ============================================================
-alter table public.profiles     enable row level security;
-alter table public.companies    enable row level security;
-alter table public.tasks        enable row level security;
-alter table public.comments     enable row level security;
-alter table public.activity_log enable row level security;
+alter table public.profiles      enable row level security;
+alter table public.companies     enable row level security;
+alter table public.tasks         enable row level security;
+alter table public.comments      enable row level security;
+alter table public.activity_log  enable row level security;
+alter table public.notifications enable row level security;
 
 -- Función auxiliar: ¿el usuario actual es admin o socio?
 create or replace function public.is_staff()
@@ -208,6 +225,13 @@ drop policy if exists "activity_insert" on public.activity_log;
 create policy "activity_read"   on public.activity_log for select to authenticated using (true);
 create policy "activity_insert" on public.activity_log for insert to authenticated with check (user_id = auth.uid());
 
+-- NOTIFICATIONS: solo ves las tuyas; cualquiera puede crear (avisar a otros);
+-- solo marcas como leídas / borras las tuyas.
+create policy "notif_read"   on public.notifications for select to authenticated using (user_id = auth.uid());
+create policy "notif_insert" on public.notifications for insert to authenticated with check (true);
+create policy "notif_update" on public.notifications for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "notif_delete" on public.notifications for delete to authenticated using (user_id = auth.uid());
+
 -- ============================================================
 -- REALTIME: publicar cambios de estas tablas
 -- ============================================================
@@ -216,6 +240,7 @@ alter publication supabase_realtime add table public.tasks;
 alter publication supabase_realtime add table public.comments;
 alter publication supabase_realtime add table public.activity_log;
 alter publication supabase_realtime add table public.profiles;
+alter publication supabase_realtime add table public.notifications;
 
 -- ============================================================
 -- (OPCIONAL) Marcar un usuario concreto como admin:

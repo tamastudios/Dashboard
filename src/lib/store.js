@@ -12,6 +12,7 @@ export const state = {
   companies: [],
   tasks: [],
   activity: [],
+  notifications: [],
   loaded: false,
   online: true       // estado de la conexión en tiempo real
 };
@@ -51,11 +52,12 @@ function removeLocal(list, id) {
    ============================================================ */
 export async function loadAll(user) {
   state.user = user;
-  const [profiles, companies, tasks, activity] = await Promise.all([
+  const [profiles, companies, tasks, activity, notifications] = await Promise.all([
     supabase.from('profiles').select('*').order('created_at'),
     supabase.from('companies').select('*').order('created_at', { ascending: false }),
     supabase.from('tasks').select('*').order('created_at', { ascending: false }),
-    supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(80)
+    supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(80),
+    supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(50)
   ]);
   for (const r of [profiles, companies, tasks, activity]) {
     if (r.error) throw r.error;
@@ -64,6 +66,7 @@ export async function loadAll(user) {
   state.companies = companies.data;
   state.tasks = tasks.data;
   state.activity = activity.data;
+  state.notifications = notifications.error ? [] : notifications.data;  // tolera si aún no existe la tabla
   state.me = state.profiles.find(p => p.id === user.id) || null;
   state.loaded = true;
   subscribeRealtime();
@@ -90,6 +93,12 @@ function subscribeRealtime() {
       emit();
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => emit())
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, p => {
+      if (p.new.user_id === state.user?.id) { state.notifications.unshift(p.new); emit(); }
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications' }, p => {
+      if (p.new.user_id === state.user?.id) { upsertLocal(state.notifications, p.new); emit(); }
+    })
     .subscribe((status) => {
       // SUBSCRIBED = conectado; CHANNEL_ERROR/TIMED_OUT/CLOSED = caído
       setOnline(status === 'SUBSCRIBED');
@@ -139,7 +148,7 @@ function applyChange(list, payload) {
 export function teardown() {
   if (channel) { supabase.removeChannel(channel); channel = null; }
   state.loaded = false;
-  state.profiles = []; state.companies = []; state.tasks = []; state.activity = [];
+  state.profiles = []; state.companies = []; state.tasks = []; state.activity = []; state.notifications = [];
   state.user = null; state.me = null;
 }
 
@@ -154,6 +163,36 @@ async function logActivity(action, entityType, entityName, detail = '') {
   };
   // el realtime lo añadirá al estado local
   await supabase.from('activity_log').insert(row);
+}
+
+/* ============================================================
+   NOTIFICACIONES
+   ============================================================ */
+export const unreadCount = () => state.notifications.filter(n => !n.read).length;
+
+/** Crea una notificación para otro usuario (no para uno mismo). */
+async function notify(userId, type, message, entityType, entityId) {
+  if (!userId || userId === state.user.id) return;   // no auto-notificarse
+  try {
+    await supabase.from('notifications').insert({
+      user_id: userId, type, message, entity_type: entityType, entity_id: entityId,
+      actor_name: state.me?.name || state.user.email
+    });
+  } catch (e) { console.warn('[notify]', e); }
+}
+
+export async function markNotificationRead(id) {
+  const n = state.notifications.find(x => x.id === id);
+  if (n) { n.read = true; emit(); }
+  await supabase.from('notifications').update({ read: true }).eq('id', id);
+}
+
+export async function markAllNotificationsRead() {
+  const ids = state.notifications.filter(n => !n.read).map(n => n.id);
+  if (!ids.length) return;
+  state.notifications.forEach(n => { n.read = true; });
+  emit();
+  await supabase.from('notifications').update({ read: true }).in('id', ids);
 }
 
 /* ============================================================
@@ -196,11 +235,14 @@ export async function createTask(fields) {
   upsertLocal(state.tasks, data); emit();
   const comp = companyById(data.company_id);
   logActivity('creó la tarea', 'task', data.title, comp ? `para ${comp.name}` : '');
+  // avisar al responsable si se le asignó al crear
+  if (data.assigned_to) notify(data.assigned_to, 'assigned', `Te asignaron la tarea «${data.title}»`, 'task', data.id);
   return data;
 }
 
 export async function updateTask(id, fields, activityMsg = 'editó la tarea') {
-  if (fields.status === 'completada' && taskById(id)?.status !== 'completada') {
+  const prev = taskById(id);
+  if (fields.status === 'completada' && prev?.status !== 'completada') {
     fields.completed_at = new Date().toISOString();
   }
   const { data, error } = await supabase.from('tasks')
@@ -209,6 +251,10 @@ export async function updateTask(id, fields, activityMsg = 'editó la tarea') {
   if (error) throw error;
   upsertLocal(state.tasks, data); emit();
   logActivity(activityMsg, 'task', data.title);
+  // avisar si cambió el responsable
+  if (fields.assigned_to && fields.assigned_to !== prev?.assigned_to) {
+    notify(fields.assigned_to, 'assigned', `Te asignaron la tarea «${data.title}»`, 'task', data.id);
+  }
   return data;
 }
 
@@ -241,6 +287,8 @@ export async function addComment(taskId, body) {
   if (error) throw error;
   const t = taskById(taskId);
   logActivity('comentó en', 'task', t?.title || '');
+  // avisar al responsable de la tarea (si no es quien comenta)
+  if (t?.assigned_to) notify(t.assigned_to, 'comment', `Nuevo comentario en «${t.title}»`, 'task', taskId);
   return data;
 }
 

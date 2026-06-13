@@ -1,6 +1,8 @@
 import './styles/main.css';
 import { supabase, configMissing } from './lib/supabase.js';
-import { state, loadAll, teardown, onChange, onConnChange } from './lib/store.js';
+import { state, loadAll, teardown, onChange, onConnChange,
+  unreadCount, markNotificationRead, markAllNotificationsRead } from './lib/store.js';
+import { relTime } from './lib/ui.js';
 import { initTheme, toggleTheme, getTheme } from './lib/theme.js';
 import { startIdle, stopIdle, isExpiredOnLoad, clearActivity } from './lib/idle.js';
 import { esc, avatarHTML, roleLabel, ICONS, debounce, asset } from './lib/ui.js';
@@ -91,8 +93,8 @@ async function enterApp(user) {
     return;
   }
   renderShell();
-  // re-render de la vista actual cuando cambian los datos (realtime)
-  unsubscribe = onChange(debounce(() => renderView(), 60));
+  // re-render de la vista actual + badge cuando cambian los datos (realtime)
+  unsubscribe = onChange(debounce(() => { renderView(); updateNotifBadge(); }, 60));
   // cierre de sesión automático tras 5 min de inactividad
   startIdle(handleIdleTimeout);
 }
@@ -138,6 +140,10 @@ function renderShell() {
             <div class="hd-search-results" id="search-results"></div>
           </div>
           <div class="hd-right">
+            <div class="hd-notif">
+              <button class="icon-btn" id="hd-bell" title="Notificaciones" aria-label="Notificaciones">${ICONS.bell}<span class="notif-dot" id="notif-dot" hidden></span></button>
+              <div class="notif-panel" id="notif-panel" hidden></div>
+            </div>
             <button class="icon-btn" id="hd-theme" title="Cambiar tema">${getTheme() === 'dark' ? ICONS.sun : ICONS.moon}</button>
             <button class="hd-user" id="hd-user">
               ${avatarHTML(state.me)}
@@ -177,7 +183,66 @@ function renderShell() {
   // búsqueda global
   setupSearch(app);
 
+  // notificaciones
+  setupNotifications(app);
+
   renderView();
+}
+
+/* ============================================================
+   NOTIFICACIONES (campana)
+   ============================================================ */
+function setupNotifications(app) {
+  const bell = app.querySelector('#hd-bell');
+  const panel = app.querySelector('#notif-panel');
+  bell.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!panel.hidden) { panel.hidden = true; return; }
+    renderNotifPanel(panel);
+    panel.hidden = false;
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.hd-notif')) panel.hidden = true;
+  });
+  updateNotifBadge();
+}
+
+function updateNotifBadge() {
+  const dot = document.getElementById('notif-dot');
+  if (!dot) return;
+  const n = unreadCount();
+  dot.hidden = n === 0;
+  dot.textContent = n > 9 ? '9+' : String(n);
+  const panel = document.getElementById('notif-panel');
+  if (panel && !panel.hidden) renderNotifPanel(panel);
+}
+
+function renderNotifPanel(panel) {
+  const items = state.notifications.slice(0, 20);
+  panel.innerHTML = `
+    <div class="notif-head">
+      <span>Notificaciones</span>
+      ${unreadCount() ? '<button id="notif-readall">Marcar todas leídas</button>' : ''}
+    </div>
+    <div class="notif-list">
+      ${items.length ? items.map(n => `
+        <button class="notif-item ${n.read ? '' : 'unread'}" data-id="${esc(n.id)}" data-task="${n.entity_type === 'task' ? esc(n.entity_id) : ''}">
+          <div class="notif-msg">${esc(n.message)}</div>
+          <div class="notif-time">${esc(n.actor_name || '')} · ${esc(relTime(n.created_at))}</div>
+        </button>`).join('')
+      : '<div class="notif-empty">No tienes notificaciones</div>'}
+    </div>`;
+  panel.querySelector('#notif-readall')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    markAllNotificationsRead();
+  });
+  panel.querySelectorAll('.notif-item').forEach(it =>
+    it.addEventListener('click', (e) => {
+      e.stopPropagation();
+      markNotificationRead(it.dataset.id);
+      panel.hidden = true;
+      if (it.dataset.task) taskDetailModal(it.dataset.task);
+    }));
 }
 
 function navigate(view) {
