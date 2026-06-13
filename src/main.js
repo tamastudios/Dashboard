@@ -1,10 +1,10 @@
 import './styles/main.css';
 import { supabase, configMissing } from './lib/supabase.js';
-import { state, loadAll, teardown, onChange } from './lib/store.js';
+import { state, loadAll, teardown, onChange, onConnChange } from './lib/store.js';
 import { initTheme, toggleTheme, getTheme } from './lib/theme.js';
 import { startIdle, stopIdle, isExpiredOnLoad, clearActivity } from './lib/idle.js';
 import { esc, avatarHTML, roleLabel, ICONS, debounce, asset } from './lib/ui.js';
-import { renderLogin, renderSetup } from './views/login.js';
+import { renderLogin, renderSetup, renderResetPassword } from './views/login.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderCompanies } from './views/companies.js';
 import { renderTasks } from './views/tasks.js';
@@ -38,6 +38,22 @@ let idleNotice = false;
    ============================================================ */
 async function boot() {
   if (configMissing) { renderSetup(); return; }
+  setupConnIndicator();
+
+  // ¿El usuario viene del enlace de recuperación de contraseña?
+  let recovering = false;
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      recovering = true;
+      stopIdle();
+      renderResetPassword((user) => { recovering = false; enterApp(user); });
+    } else if (event === 'SIGNED_OUT') {
+      if (!recovering) logout();
+    }
+  });
+  // si la URL trae el token de recuperación, espera al evento PASSWORD_RECOVERY
+  if (/type=recovery/.test(window.location.hash)) return;
+
   const { data } = await supabase.auth.getSession();
   if (data.session) {
     if (isExpiredOnLoad()) {
@@ -51,10 +67,6 @@ async function boot() {
   } else {
     renderLogin(enterApp);
   }
-
-  supabase.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_OUT') logout();
-  });
 }
 
 /** Se llama cuando se cumplen los 5 min de inactividad. */
@@ -236,6 +248,25 @@ function setupSearch(app) {
   input.addEventListener('focus', run);
   document.addEventListener('click', e => {
     if (!e.target.closest('.hd-search')) results.classList.remove('open');
+  });
+}
+
+/* ============================================================
+   INDICADOR DE CONEXIÓN
+   ============================================================ */
+let connBanner = null;
+function setupConnIndicator() {
+  onConnChange((online) => {
+    if (!connBanner) {
+      connBanner = document.createElement('div');
+      connBanner.className = 'conn-banner';
+      document.body.appendChild(connBanner);
+    }
+    connBanner.textContent = online ? '✓ Conexión restablecida' : '⚠ Sin conexión · Reintentando…';
+    connBanner.classList.toggle('ok', online);
+    connBanner.classList.add('show');
+    clearTimeout(connBanner._t);
+    if (online) connBanner._t = setTimeout(() => connBanner.classList.remove('show'), 2500);
   });
 }
 

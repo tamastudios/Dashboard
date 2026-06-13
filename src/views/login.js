@@ -25,6 +25,7 @@ export function renderLogin(onSuccess, notice = null) {
           </div>
           <button type="submit" class="btn btn-primary btn-block" id="lg-btn">Entrar</button>
         </form>
+        <button class="login-link" id="lg-forgot">¿Olvidaste tu contraseña?</button>
         <p class="login-foot">TAMA Studios · Acceso solo para el equipo</p>
       </div>
     </div>`;
@@ -58,7 +59,124 @@ export function renderLogin(onSuccess, notice = null) {
     onSuccess(data.user);
   });
 
+  document.getElementById('lg-forgot').addEventListener('click', () => renderForgot(onSuccess));
   document.getElementById('lg-email').focus();
+}
+
+/* ============================================================
+   RECUPERAR CONTRASEÑA — paso 1: pedir el email
+   ============================================================ */
+export function renderForgot(onSuccess) {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="login-page">
+      <div class="login-card">
+        <div class="login-logo">
+          <img class="brand-light" src="${asset('brand/logo.svg')}" alt="TAMA Studios" />
+          <img class="brand-dark" src="${asset('brand/logo-white.svg')}" alt="TAMA Studios" />
+        </div>
+        <h1>Recuperar contraseña</h1>
+        <p class="sub">Te enviaremos un enlace para crear una nueva contraseña.</p>
+        <div class="login-err" id="fg-err"></div>
+        <div class="login-notice" id="fg-ok" style="display:none"></div>
+        <form id="forgot-form" novalidate>
+          <div class="fld">
+            <label for="fg-email">Email</label>
+            <input type="email" id="fg-email" autocomplete="email" required placeholder="tu@email.com" />
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" id="fg-btn">Enviar enlace</button>
+        </form>
+        <button class="login-link" id="fg-back">← Volver al inicio de sesión</button>
+      </div>
+    </div>`;
+
+  const form = document.getElementById('forgot-form');
+  const errBox = document.getElementById('fg-err');
+  const okBox = document.getElementById('fg-ok');
+  const btn = document.getElementById('fg-btn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errBox.classList.remove('show');
+    const email = document.getElementById('fg-email').value.trim();
+    if (!email) { errBox.textContent = 'Introduce tu email.'; errBox.classList.add('show'); return; }
+    btn.disabled = true;
+    btn.textContent = 'Enviando…';
+    // el enlace del email vuelve a esta misma URL; main.js detecta la recuperación
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname
+    });
+    if (error) {
+      errBox.textContent = error.message;
+      errBox.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Enviar enlace';
+      return;
+    }
+    form.style.display = 'none';
+    okBox.textContent = '✓ Si ese email pertenece al equipo, recibirás un enlace en unos minutos. Revisa también el spam.';
+    okBox.style.display = 'block';
+  });
+
+  document.getElementById('fg-back').addEventListener('click', () => renderLogin(onSuccess));
+  document.getElementById('fg-email').focus();
+}
+
+/* ============================================================
+   RECUPERAR CONTRASEÑA — paso 2: fijar la nueva contraseña
+   (se muestra cuando el usuario vuelve desde el enlace del email)
+   ============================================================ */
+export function renderResetPassword(onDone) {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="login-page">
+      <div class="login-card">
+        <div class="login-logo">
+          <img class="brand-light" src="${asset('brand/logo.svg')}" alt="TAMA Studios" />
+          <img class="brand-dark" src="${asset('brand/logo-white.svg')}" alt="TAMA Studios" />
+        </div>
+        <h1>Nueva contraseña</h1>
+        <p class="sub">Crea una contraseña segura para tu cuenta.</p>
+        <div class="login-err" id="rp-err"></div>
+        <form id="reset-form" novalidate>
+          <div class="fld">
+            <label for="rp-pass">Nueva contraseña</label>
+            <input type="password" id="rp-pass" autocomplete="new-password" required placeholder="Mínimo 8 caracteres" />
+          </div>
+          <div class="fld">
+            <label for="rp-pass2">Repite la contraseña</label>
+            <input type="password" id="rp-pass2" autocomplete="new-password" required placeholder="••••••••" />
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" id="rp-btn">Guardar y entrar</button>
+        </form>
+      </div>
+    </div>`;
+
+  const form = document.getElementById('reset-form');
+  const errBox = document.getElementById('rp-err');
+  const btn = document.getElementById('rp-btn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errBox.classList.remove('show');
+    const p1 = document.getElementById('rp-pass').value;
+    const p2 = document.getElementById('rp-pass2').value;
+    if (p1.length < 8) { errBox.textContent = 'La contraseña debe tener al menos 8 caracteres.'; errBox.classList.add('show'); return; }
+    if (p1 !== p2) { errBox.textContent = 'Las contraseñas no coinciden.'; errBox.classList.add('show'); return; }
+    btn.disabled = true;
+    btn.textContent = 'Guardando…';
+    const { data, error } = await supabase.auth.updateUser({ password: p1 });
+    if (error) {
+      errBox.textContent = error.message;
+      errBox.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Guardar y entrar';
+      return;
+    }
+    onDone(data.user);
+  });
+
+  document.getElementById('rp-pass').focus();
 }
 
 export function renderSetup() {

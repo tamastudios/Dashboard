@@ -12,13 +12,23 @@ export const state = {
   companies: [],
   tasks: [],
   activity: [],
-  loaded: false
+  loaded: false,
+  online: true       // estado de la conexión en tiempo real
 };
 
 /* ---------- eventos ---------- */
 const listeners = new Set();
 export function onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 function emit() { listeners.forEach(fn => { try { fn(); } catch (e) { console.error(e); } }); }
+
+/* ---------- estado de conexión ---------- */
+const connListeners = new Set();
+export function onConnChange(fn) { connListeners.add(fn); return () => connListeners.delete(fn); }
+function setOnline(v) {
+  if (state.online === v) return;
+  state.online = v;
+  connListeners.forEach(fn => { try { fn(v); } catch (e) { console.error(e); } });
+}
 
 /* ---------- helpers ---------- */
 /** true si el usuario actual es admin o socio (puede borrar). Los colaboradores no. */
@@ -80,7 +90,44 @@ function subscribeRealtime() {
       emit();
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => emit())
-    .subscribe();
+    .subscribe((status) => {
+      // SUBSCRIBED = conectado; CHANNEL_ERROR/TIMED_OUT/CLOSED = caído
+      setOnline(status === 'SUBSCRIBED');
+    });
+
+  // Reaccionar a la conexión del navegador (solo se registra una vez)
+  if (!windowListenersSet) {
+    window.addEventListener('offline', () => setOnline(false));
+    window.addEventListener('online', () => reconnect());
+    windowListenersSet = true;
+  }
+}
+let windowListenersSet = false;
+
+/** Reintenta la conexión en tiempo real y recarga los datos perdidos. */
+export async function reconnect() {
+  if (!state.user) return;
+  try {
+    if (channel) { await supabase.removeChannel(channel); channel = null; }
+    // recarga el estado por si hubo cambios mientras no había conexión
+    await refreshData();
+    subscribeRealtime();
+  } catch (e) { console.warn('[reconnect]', e); setOnline(false); }
+}
+
+async function refreshData() {
+  const [profiles, companies, tasks, activity] = await Promise.all([
+    supabase.from('profiles').select('*').order('created_at'),
+    supabase.from('companies').select('*').order('created_at', { ascending: false }),
+    supabase.from('tasks').select('*').order('created_at', { ascending: false }),
+    supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(80)
+  ]);
+  if (!profiles.error) state.profiles = profiles.data;
+  if (!companies.error) state.companies = companies.data;
+  if (!tasks.error) state.tasks = tasks.data;
+  if (!activity.error) state.activity = activity.data;
+  if (state.user) state.me = state.profiles.find(p => p.id === state.user.id) || state.me;
+  emit();
 }
 
 function applyChange(list, payload) {
