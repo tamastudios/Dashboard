@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase.js';
 import { el, asset } from '../lib/ui.js';
+import { listVerifiedFactors, enrollTotp, verifyCode } from '../lib/mfa.js';
 
 export function renderLogin(onSuccess, notice = null) {
   const app = document.getElementById('app');
@@ -177,6 +178,122 @@ export function renderResetPassword(onDone) {
   });
 
   document.getElementById('rp-pass').focus();
+}
+
+/* ============================================================
+   MFA — paso de verificación en el login (usuario YA tiene 2FA)
+   ============================================================ */
+export async function renderMfaChallenge(onDone) {
+  const app = document.getElementById('app');
+  const factors = await listVerifiedFactors();
+  const factorId = factors[0]?.id;
+
+  app.innerHTML = `
+    <div class="login-page"><div class="login-card">
+      <div class="login-logo">
+        <img class="brand-light" src="${asset('brand/logo.svg')}" alt="TAMA Studios" />
+        <img class="brand-dark" src="${asset('brand/logo-white.svg')}" alt="TAMA Studios" />
+      </div>
+      <h1>Verificación en dos pasos</h1>
+      <p class="sub">Introduce el código de 6 dígitos de tu app de autenticación.</p>
+      <div class="login-err" id="mfa-err"></div>
+      <form id="mfa-form" novalidate>
+        <div class="fld">
+          <input type="text" id="mfa-code" inputmode="numeric" autocomplete="one-time-code"
+            maxlength="6" placeholder="123456" style="text-align:center;letter-spacing:.35em;font-size:1.2rem" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="mfa-btn">Verificar</button>
+      </form>
+      <button class="login-link" id="mfa-logout">Cancelar e iniciar sesión de nuevo</button>
+    </div></div>`;
+
+  const form = document.getElementById('mfa-form');
+  const errBox = document.getElementById('mfa-err');
+  const btn = document.getElementById('mfa-btn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errBox.classList.remove('show');
+    const code = document.getElementById('mfa-code').value.trim();
+    if (!/^\d{6}$/.test(code)) { errBox.textContent = 'El código son 6 dígitos.'; errBox.classList.add('show'); return; }
+    btn.disabled = true; btn.textContent = 'Verificando…';
+    try {
+      await verifyCode(factorId, code);
+      onDone();
+    } catch (err) {
+      errBox.textContent = 'Código incorrecto o caducado. Inténtalo otra vez.';
+      errBox.classList.add('show');
+      btn.disabled = false; btn.textContent = 'Verificar';
+      document.getElementById('mfa-code').value = '';
+    }
+  });
+
+  document.getElementById('mfa-logout').addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    renderLogin(onDone);
+  });
+  document.getElementById('mfa-code').focus();
+}
+
+/* ============================================================
+   MFA — alta obligatoria (admin/socio sin 2FA configurado)
+   ============================================================ */
+export async function renderMfaEnroll(onDone) {
+  const app = document.getElementById('app');
+  app.innerHTML = `<div class="login-page"><div class="login-card"><div class="boot-spinner" style="position:static;height:80px"></div></div></div>`;
+
+  let factor;
+  try { factor = await enrollTotp(); }
+  catch (err) {
+    app.innerHTML = `<div class="login-page"><div class="login-card">
+      <h1>Error al activar 2FA</h1><p class="sub">${err.message || ''}</p>
+      <button class="btn btn-ghost btn-block" id="mfa-retry">Reintentar</button></div></div>`;
+    document.getElementById('mfa-retry').addEventListener('click', () => renderMfaEnroll(onDone));
+    return;
+  }
+
+  app.innerHTML = `
+    <div class="login-page"><div class="login-card">
+      <div class="login-logo">
+        <img class="brand-light" src="${asset('brand/logo.svg')}" alt="TAMA Studios" />
+        <img class="brand-dark" src="${asset('brand/logo-white.svg')}" alt="TAMA Studios" />
+      </div>
+      <h1>Activa la verificación en dos pasos</h1>
+      <p class="sub">Tu rol requiere 2FA. Escanea el código con Google Authenticator, Authy o similar.</p>
+      <div class="mfa-qr"><img src="${factor.totp.qr_code}" alt="Código QR para 2FA" width="180" height="180" /></div>
+      <p class="mfa-secret">¿No puedes escanear? Introduce esta clave manualmente:<br><code>${factor.totp.secret}</code></p>
+      <div class="login-err" id="mfa-err"></div>
+      <form id="mfa-form" novalidate>
+        <div class="fld">
+          <label for="mfa-code">Código de la app</label>
+          <input type="text" id="mfa-code" inputmode="numeric" autocomplete="one-time-code"
+            maxlength="6" placeholder="123456" style="text-align:center;letter-spacing:.35em;font-size:1.2rem" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="mfa-btn">Activar y entrar</button>
+      </form>
+    </div></div>`;
+
+  const form = document.getElementById('mfa-form');
+  const errBox = document.getElementById('mfa-err');
+  const btn = document.getElementById('mfa-btn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errBox.classList.remove('show');
+    const code = document.getElementById('mfa-code').value.trim();
+    if (!/^\d{6}$/.test(code)) { errBox.textContent = 'El código son 6 dígitos.'; errBox.classList.add('show'); return; }
+    btn.disabled = true; btn.textContent = 'Activando…';
+    try {
+      await verifyCode(factor.id, code);
+      onDone();
+    } catch (err) {
+      errBox.textContent = 'Código incorrecto. Revisa la hora de tu móvil e inténtalo otra vez.';
+      errBox.classList.add('show');
+      btn.disabled = false; btn.textContent = 'Activar y entrar';
+      document.getElementById('mfa-code').value = '';
+    }
+  });
+  document.getElementById('mfa-code').focus();
 }
 
 export function renderSetup() {

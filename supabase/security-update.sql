@@ -21,15 +21,15 @@ as $$
   );
 $$;
 
--- COMPANIES
+-- COMPANIES (datos maestros): ver todos; crear/editar/borrar solo admin o socio.
 drop policy if exists "companies_all"    on public.companies;
 drop policy if exists "companies_read"   on public.companies;
 drop policy if exists "companies_insert" on public.companies;
 drop policy if exists "companies_update" on public.companies;
 drop policy if exists "companies_delete" on public.companies;
 create policy "companies_read"   on public.companies for select to authenticated using (true);
-create policy "companies_insert" on public.companies for insert to authenticated with check (true);
-create policy "companies_update" on public.companies for update to authenticated using (true) with check (true);
+create policy "companies_insert" on public.companies for insert to authenticated with check (public.is_staff());
+create policy "companies_update" on public.companies for update to authenticated using (public.is_staff()) with check (public.is_staff());
 create policy "companies_delete" on public.companies for delete to authenticated using (public.is_staff());
 
 -- TASKS

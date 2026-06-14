@@ -184,18 +184,19 @@ create policy "profiles_update_self" on public.profiles for update to authentica
 create policy "profiles_admin_update" on public.profiles for update to authenticated
   using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
 
--- COMPANIES: ver/crear/editar cualquiera; borrar solo admin o socio.
+-- COMPANIES (datos maestros / cartera de clientes):
+-- todos pueden verlas; solo admin o socio puede crear, editar y borrar.
 drop policy if exists "companies_all"    on public.companies;
 drop policy if exists "companies_read"   on public.companies;
 drop policy if exists "companies_insert" on public.companies;
 drop policy if exists "companies_update" on public.companies;
 drop policy if exists "companies_delete" on public.companies;
 create policy "companies_read"   on public.companies for select to authenticated using (true);
-create policy "companies_insert" on public.companies for insert to authenticated with check (true);
-create policy "companies_update" on public.companies for update to authenticated using (true) with check (true);
+create policy "companies_insert" on public.companies for insert to authenticated with check (public.is_staff());
+create policy "companies_update" on public.companies for update to authenticated using (public.is_staff()) with check (public.is_staff());
 create policy "companies_delete" on public.companies for delete to authenticated using (public.is_staff());
 
--- TASKS: ver/crear/editar cualquiera; borrar solo admin o socio.
+-- TASKS (trabajo diario): todos pueden ver, crear y editar; borrar solo staff.
 drop policy if exists "tasks_all"    on public.tasks;
 drop policy if exists "tasks_read"   on public.tasks;
 drop policy if exists "tasks_insert" on public.tasks;

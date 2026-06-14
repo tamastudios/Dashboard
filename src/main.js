@@ -6,7 +6,8 @@ import { relTime } from './lib/ui.js';
 import { initTheme, toggleTheme, getTheme } from './lib/theme.js';
 import { startIdle, stopIdle, isExpiredOnLoad, clearActivity } from './lib/idle.js';
 import { esc, avatarHTML, roleLabel, ICONS, debounce, asset } from './lib/ui.js';
-import { renderLogin, renderSetup, renderResetPassword } from './views/login.js';
+import { renderLogin, renderSetup, renderResetPassword, renderMfaChallenge, renderMfaEnroll } from './views/login.js';
+import { getAAL, listVerifiedFactors } from './lib/mfa.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderCompanies } from './views/companies.js';
 import { renderTasks } from './views/tasks.js';
@@ -48,7 +49,7 @@ async function boot() {
     if (event === 'PASSWORD_RECOVERY') {
       recovering = true;
       stopIdle();
-      renderResetPassword((user) => { recovering = false; enterApp(user); });
+      renderResetPassword((user) => { recovering = false; afterLogin(user); });
     } else if (event === 'SIGNED_OUT') {
       if (!recovering) logout();
     }
@@ -62,13 +63,34 @@ async function boot() {
       // la sesión estaba abierta pero llevaba >5 min sin uso → cerrar
       clearActivity();
       await supabase.auth.signOut();
-      renderLogin(enterApp, 'Tu sesión se cerró por inactividad.');
+      renderLogin(afterLogin, 'Tu sesión se cerró por inactividad.');
     } else {
-      await enterApp(data.session.user);
+      await afterLogin(data.session.user);
     }
   } else {
-    renderLogin(enterApp);
+    renderLogin(afterLogin);
   }
+}
+
+/* ============================================================
+   GATE DE MFA (entre el login y la entrada a la app)
+   ============================================================ */
+async function afterLogin(user) {
+  // 1) ¿tiene 2FA y debe verificar el segundo factor?
+  const aal = await getAAL();
+  if (aal.currentLevel === 'aal1' && aal.nextLevel === 'aal2') {
+    renderMfaChallenge(() => enterApp(user));
+    return;
+  }
+  // 2) ¿es admin o socio sin 2FA configurado? → alta obligatoria
+  try {
+    const { data } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (data?.role === 'admin' || data?.role === 'socio') {
+      const factors = await listVerifiedFactors();
+      if (factors.length === 0) { renderMfaEnroll(() => enterApp(user)); return; }
+    }
+  } catch (e) { /* si falla la consulta no bloqueamos el acceso */ }
+  enterApp(user);
 }
 
 /** Se llama cuando se cumplen los 5 min de inactividad. */

@@ -6,6 +6,8 @@ export default defineConfig({
   base: '/Dashboard/',
   build: {
     target: 'es2020',
-    sourcemap: false
+    sourcemap: false,            // no exponer el código fuente original
+    // sin polyfill inline de modulepreload → permite una CSP de scripts estricta
+    modulePreload: { polyfill: false }
   }
 });

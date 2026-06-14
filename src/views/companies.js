@@ -15,7 +15,7 @@ export function renderCompanies(root) {
         <div class="sub">${state.companies.length} empresa${state.companies.length === 1 ? '' : 's'} registrada${state.companies.length === 1 ? '' : 's'}</div>
       </div>
       <div class="page-actions">
-        <button class="btn btn-primary" id="new-company">${ICONS.plus} Nueva empresa</button>
+        ${isStaff() ? `<button class="btn btn-primary" id="new-company">${ICONS.plus} Nueva empresa</button>` : ''}
       </div>
     </div>
 
@@ -34,7 +34,7 @@ export function renderCompanies(root) {
 
     <div id="companies-body"></div>`;
 
-  root.querySelector('#new-company').addEventListener('click', () => companyModal());
+  root.querySelector('#new-company')?.addEventListener('click', () => companyModal());
   root.querySelector('#f-q').addEventListener('input', debounce(e => { filters.q = e.target.value; paint(root); }, 200));
   root.querySelector('#f-status').addEventListener('change', e => { filters.status = e.target.value; paint(root); });
   root.querySelector('#f-sort').addEventListener('change', e => { filters.sort = e.target.value; paint(root); });
@@ -91,8 +91,8 @@ function paint(root) {
             <td>${owner ? `<div style="display:flex;align-items:center;gap:7px">${avatarHTML(owner, 'sm')}<span style="font-size:.82rem">${esc((owner.name || owner.email).split(' ')[0])}</span></div>` : '<span style="color:var(--muted)">—</span>'}</td>
             <td style="color:var(--muted);font-size:.82rem">${fmtDate(c.created_at)}</td>
             <td><div class="row-actions">
-              <button class="icon-btn edit" title="Editar">${ICONS.edit}</button>
-              ${isStaff() ? `<button class="icon-btn del" title="Eliminar" style="color:var(--red)">${ICONS.trash}</button>` : ''}
+              ${isStaff() ? `<button class="icon-btn edit" title="Editar">${ICONS.edit}</button>
+              <button class="icon-btn del" title="Eliminar" style="color:var(--red)">${ICONS.trash}</button>` : ''}
             </div></td>
           </tr>`;
         }).join('')}
@@ -101,6 +101,7 @@ function paint(root) {
 
   body.querySelectorAll('tbody tr').forEach(tr => {
     const c = state.companies.find(x => x.id === tr.dataset.id);
+    if (!isStaff()) return;   // los colaboradores solo consultan la cartera
     tr.querySelector('.edit').addEventListener('click', e => { e.stopPropagation(); companyModal(c); });
     tr.querySelector('.del')?.addEventListener('click', async e => {
       e.stopPropagation();

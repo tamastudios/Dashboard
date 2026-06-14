@@ -53,7 +53,7 @@ function removeLocal(list, id) {
 export async function loadAll(user) {
   state.user = user;
   const [profiles, companies, tasks, activity, notifications] = await Promise.all([
-    supabase.from('profiles').select('*').order('created_at'),
+    supabase.from('profiles').select('id,name,email,avatar_url,role,created_at').order('created_at'),
     supabase.from('companies').select('*').order('created_at', { ascending: false }),
     supabase.from('tasks').select('*').order('created_at', { ascending: false }),
     supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(80),
@@ -126,7 +126,7 @@ export async function reconnect() {
 
 async function refreshData() {
   const [profiles, companies, tasks, activity] = await Promise.all([
-    supabase.from('profiles').select('*').order('created_at'),
+    supabase.from('profiles').select('id,name,email,avatar_url,role,created_at').order('created_at'),
     supabase.from('companies').select('*').order('created_at', { ascending: false }),
     supabase.from('tasks').select('*').order('created_at', { ascending: false }),
     supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(80)
