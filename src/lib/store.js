@@ -13,6 +13,7 @@ export const state = {
   tasks: [],
   activity: [],
   notifications: [],
+  prospects: [],     // prospectos guardados/vetados (módulo Prospector)
   loaded: false,
   online: true       // estado de la conexión en tiempo real
 };
@@ -148,7 +149,7 @@ function applyChange(list, payload) {
 export function teardown() {
   if (channel) { supabase.removeChannel(channel); channel = null; }
   state.loaded = false;
-  state.profiles = []; state.companies = []; state.tasks = []; state.activity = []; state.notifications = [];
+  state.profiles = []; state.companies = []; state.tasks = []; state.activity = []; state.notifications = []; state.prospects = [];
   state.user = null; state.me = null;
 }
 
@@ -303,4 +304,51 @@ export async function updateProfile(id, fields) {
   if (state.user && id === state.user.id) state.me = data;
   emit();
   return data;
+}
+
+/* ============================================================
+   PROSPECTOS (módulo Prospector)
+   ============================================================ */
+export const prospectByPlaceId = placeId =>
+  state.prospects.find(p => p.place_id === placeId) || null;
+
+export async function loadProspects() {
+  const { data, error } = await supabase
+    .from('prospects').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  state.prospects = data;
+  emit();
+}
+
+export async function saveProspect(fields) {
+  const existing = prospectByPlaceId(fields.place_id);
+  if (existing) {
+    // ya guardado → actualizar estado/notas
+    const { data, error } = await supabase.from('prospects')
+      .update({ status: fields.status ?? existing.status, notes: fields.notes ?? existing.notes, updated_at: new Date().toISOString() })
+      .eq('id', existing.id).select().single();
+    if (error) throw error;
+    upsertLocal(state.prospects, data); emit();
+    return data;
+  }
+  const { data, error } = await supabase.from('prospects')
+    .insert({ ...fields, created_by: state.user.id }).select().single();
+  if (error) throw error;
+  state.prospects.unshift(data); emit();
+  return data;
+}
+
+export async function updateProspect(id, fields) {
+  const { data, error } = await supabase.from('prospects')
+    .update({ ...fields, updated_at: new Date().toISOString() })
+    .eq('id', id).select().single();
+  if (error) throw error;
+  upsertLocal(state.prospects, data); emit();
+  return data;
+}
+
+export async function deleteProspect(id) {
+  const { error } = await supabase.from('prospects').delete().eq('id', id);
+  if (error) throw error;
+  removeLocal(state.prospects, id); emit();
 }

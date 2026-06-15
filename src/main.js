@@ -16,6 +16,7 @@ import { renderCalendar } from './views/calendar.js';
 import { renderTeam } from './views/team.js';
 import { renderActivity } from './views/activity.js';
 import { renderSettings } from './views/settings.js';
+import { renderProspector } from './views/prospector.js';
 import { taskDetailModal } from './views/forms.js';
 import { companyModal } from './views/forms.js';
 
@@ -28,8 +29,9 @@ const NAV = [
   { id: 'kanban',    label: 'Kanban',    icon: ICONS.kanban,    render: renderKanban },
   { id: 'calendario',label: 'Calendario',icon: ICONS.calendar,  render: renderCalendar },
   { id: 'equipo',    label: 'Equipo',    icon: ICONS.team,      render: renderTeam },
-  { id: 'actividad', label: 'Actividad', icon: ICONS.activity,  render: renderActivity },
-  { id: 'ajustes',   label: 'Ajustes',   icon: ICONS.settings,  render: renderSettings }
+  { id: 'actividad',   label: 'Actividad',   icon: ICONS.activity,    render: renderActivity },
+  { id: 'prospector', label: 'Prospector', icon: ICONS.prospector, render: renderProspector },
+  { id: 'ajustes',    label: 'Ajustes',    icon: ICONS.settings,   render: renderSettings }
 ];
 
 let current = 'dashboard';

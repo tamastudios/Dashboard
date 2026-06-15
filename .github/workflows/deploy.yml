@@ -30,6 +30,7 @@ jobs:
           # Settings → Secrets and variables → Actions → New repository secret
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_GOOGLE_PLACES_API_KEY: ${{ secrets.VITE_GOOGLE_PLACES_API_KEY }}
         run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
