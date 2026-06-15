@@ -301,6 +301,9 @@ function renderSearchTab(body, apiKey) {
   body.querySelector('#ps-many-reviews').addEventListener('change', e => { searchState.manyReviews = e.target.checked; });
   body.querySelector('#ps-no-phone').addEventListener('change', e => { searchState.noPhone = e.target.checked; });
   body.querySelector('#ps-search').addEventListener('click', () => doSearch(body, apiKey));
+
+  // Si ya hay resultados (re-render por emit), reconectar los botones de las cards
+  if (searchState.searched && !searchState.loading) attachResultsEvents(body, apiKey);
 }
 
 function renderResultsArea() {
