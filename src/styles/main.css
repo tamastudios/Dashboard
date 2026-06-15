@@ -745,9 +745,28 @@ tr:hover .row-actions { opacity: 1; }
 }
 .prosp-badge svg { width: 11px; height: 11px; }
 .prosp-badge.web { background: var(--primary-soft); color: var(--primary); }
+.prosp-badge.social-web { background: var(--yellow-soft); color: var(--yellow); }
 .prosp-badge.no-web { background: var(--red-soft); color: var(--red); }
 .prosp-badge.vetoed-tag { background: var(--red-soft); color: var(--red); }
 .prosp-badge.saved-tag { background: var(--green-soft); color: var(--green); }
+
+/* grupos de filtros */
+.prosp-filter-group {
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 12px 0; border-top: 1px solid var(--line);
+}
+.prosp-filter-title {
+  display: flex; align-items: center; gap: 5px;
+  font-size: .75rem; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px;
+}
+.prosp-filter-title svg { width: 12px; height: 12px; }
+.prosp-filter-note {
+  font-size: .75rem; color: var(--muted); line-height: 1.4;
+  background: var(--surface-2); border-radius: var(--r);
+  padding: 6px 8px; margin-top: 2px;
+}
+.prosp-row { display: flex; gap: 10px; }
 
 /* --- setup sin API key --- */
 .prosp-setup {

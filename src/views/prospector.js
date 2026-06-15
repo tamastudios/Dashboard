@@ -67,6 +67,11 @@ const TYPE_LABELS = {
   establishment: 'Negocio', point_of_interest: 'Punto de interés',
 };
 
+/* ---------- dominios considerados "web pobre" (redes sociales) ---------- */
+const SOCIAL_DOMAINS = ['facebook.com', 'instagram.com', 'twitter.com', 'x.com',
+  'linktr.ee', 'bio.link', 'taplink.cc', 'beacons.ai', 'linkinbio'];
+const isSocialWeb = url => !!url && SOCIAL_DOMAINS.some(d => url.toLowerCase().includes(d));
+
 /* ---------- estado local del módulo ---------- */
 let tab = 'buscar';  // 'buscar' | 'guardados' | 'vetados'
 let searchState = {
@@ -74,13 +79,22 @@ let searchState = {
   zone: 'Sabadell',
   radius: 3000,
   category: '',
+  maxResults: 20,
+  // filtros de presencia digital
   noWebsite: false,
+  socialWebOnly: false,
+  hasRealWeb: false,
+  // filtros de valoración
   lowRating: false,
+  highRating: false,
+  // filtros de reseñas
   fewReviews: false,
+  manyReviews: false,
+  // otros
+  noPhone: false,
   results: [],
   loading: false,
   searched: false,
-  nextPageToken: null,
 };
 let savedFilter = { q: '', sort: 'recent' };
 
@@ -176,7 +190,7 @@ function renderSearchTab(body, apiKey) {
           <input type="text" id="ps-query" class="prosp-input" placeholder="peluquería, restaurante, taller…"
             value="${esc(searchState.query)}" />
 
-          <label class="prosp-label">Categoría (opcional)</label>
+          <label class="prosp-label">Categoría</label>
           <select id="ps-category" class="prosp-select">
             <option value="">Todas las categorías</option>
             ${CATEGORIES.map(c => `<option value="${c.value}"${searchState.category === c.value ? ' selected' : ''}>${c.label}</option>`).join('')}
@@ -187,28 +201,78 @@ function renderSearchTab(body, apiKey) {
             ${ZONES.map(z => `<option value="${z.id}"${searchState.zone === z.id ? ' selected' : ''}>${z.id}</option>`).join('')}
           </select>
 
-          <label class="prosp-label">Radio de búsqueda</label>
-          <select id="ps-radius" class="prosp-select">
-            <option value="1000"${searchState.radius === 1000 ? ' selected' : ''}>1 km</option>
-            <option value="2000"${searchState.radius === 2000 ? ' selected' : ''}>2 km</option>
-            <option value="3000"${searchState.radius === 3000 ? ' selected' : ''}>3 km</option>
-            <option value="5000"${searchState.radius === 5000 ? ' selected' : ''}>5 km</option>
-            <option value="10000"${searchState.radius === 10000 ? ' selected' : ''}>10 km</option>
-          </select>
+          <div class="prosp-row">
+            <div style="flex:1">
+              <label class="prosp-label">Radio</label>
+              <select id="ps-radius" class="prosp-select">
+                <option value="1000"${searchState.radius === 1000 ? ' selected' : ''}>1 km</option>
+                <option value="2000"${searchState.radius === 2000 ? ' selected' : ''}>2 km</option>
+                <option value="3000"${searchState.radius === 3000 ? ' selected' : ''}>3 km</option>
+                <option value="5000"${searchState.radius === 5000 ? ' selected' : ''}>5 km</option>
+                <option value="10000"${searchState.radius === 10000 ? ' selected' : ''}>10 km</option>
+              </select>
+            </div>
+            <div style="flex:1">
+              <label class="prosp-label">Resultados</label>
+              <select id="ps-max" class="prosp-select">
+                <option value="10"${searchState.maxResults === 10 ? ' selected' : ''}>10</option>
+                <option value="20"${searchState.maxResults === 20 ? ' selected' : ''}>20</option>
+                <option value="30"${searchState.maxResults === 30 ? ' selected' : ''}>30</option>
+                <option value="50"${searchState.maxResults === 50 ? ' selected' : ''}>50</option>
+              </select>
+            </div>
+          </div>
 
-          <div class="prosp-label" style="margin-top:18px">Filtrar resultados</div>
-          <label class="prosp-check">
-            <input type="checkbox" id="ps-no-web" ${searchState.noWebsite ? 'checked' : ''} />
-            <span>${ICONS.globe} Sin página web</span>
-          </label>
-          <label class="prosp-check">
-            <input type="checkbox" id="ps-low-rating" ${searchState.lowRating ? 'checked' : ''} />
-            <span>${ICONS.star} Valoración baja (&lt; 4 ★)</span>
-          </label>
-          <label class="prosp-check">
-            <input type="checkbox" id="ps-few-reviews" ${searchState.fewReviews ? 'checked' : ''} />
-            <span>Pocas reseñas (&lt; 30)</span>
-          </label>
+          <div class="prosp-filter-group">
+            <div class="prosp-filter-title">${ICONS.globe} Presencia web</div>
+            <label class="prosp-check">
+              <input type="checkbox" id="ps-no-web" ${searchState.noWebsite ? 'checked' : ''} />
+              <span>Sin página web</span>
+            </label>
+            <label class="prosp-check">
+              <input type="checkbox" id="ps-social-web" ${searchState.socialWebOnly ? 'checked' : ''} />
+              <span>Web solo en redes sociales</span>
+            </label>
+            <label class="prosp-check">
+              <input type="checkbox" id="ps-real-web" ${searchState.hasRealWeb ? 'checked' : ''} />
+              <span>Con web propia</span>
+            </label>
+          </div>
+
+          <div class="prosp-filter-group">
+            <div class="prosp-filter-title">${ICONS.star} Valoración</div>
+            <label class="prosp-check">
+              <input type="checkbox" id="ps-low-rating" ${searchState.lowRating ? 'checked' : ''} />
+              <span>Baja (&lt; 4 ★) — necesitan mejorar</span>
+            </label>
+            <label class="prosp-check">
+              <input type="checkbox" id="ps-high-rating" ${searchState.highRating ? 'checked' : ''} />
+              <span>Alta (≥ 4.5 ★) — negocio activo</span>
+            </label>
+          </div>
+
+          <div class="prosp-filter-group">
+            <div class="prosp-filter-title">Reseñas</div>
+            <label class="prosp-check">
+              <input type="checkbox" id="ps-few-reviews" ${searchState.fewReviews ? 'checked' : ''} />
+              <span>Pocas reseñas (&lt; 30)</span>
+            </label>
+            <label class="prosp-check">
+              <input type="checkbox" id="ps-many-reviews" ${searchState.manyReviews ? 'checked' : ''} />
+              <span>Muchas reseñas (≥ 100)</span>
+            </label>
+            <div class="prosp-filter-note">
+              Si responden o no a reseñas solo puedes verlo directamente en Maps — usa el botón <strong>Reseñas</strong> en cada negocio.
+            </div>
+          </div>
+
+          <div class="prosp-filter-group">
+            <div class="prosp-filter-title">Otros</div>
+            <label class="prosp-check">
+              <input type="checkbox" id="ps-no-phone" ${searchState.noPhone ? 'checked' : ''} />
+              <span>Sin teléfono registrado</span>
+            </label>
+          </div>
 
           <button class="btn btn-primary prosp-search-btn" id="ps-search">
             ${ICONS.search} Buscar negocios
@@ -227,9 +291,15 @@ function renderSearchTab(body, apiKey) {
   body.querySelector('#ps-category').addEventListener('change', e => { searchState.category = e.target.value; });
   body.querySelector('#ps-zone').addEventListener('change', e => { searchState.zone = e.target.value; });
   body.querySelector('#ps-radius').addEventListener('change', e => { searchState.radius = +e.target.value; });
+  body.querySelector('#ps-max').addEventListener('change', e => { searchState.maxResults = +e.target.value; });
   body.querySelector('#ps-no-web').addEventListener('change', e => { searchState.noWebsite = e.target.checked; });
+  body.querySelector('#ps-social-web').addEventListener('change', e => { searchState.socialWebOnly = e.target.checked; });
+  body.querySelector('#ps-real-web').addEventListener('change', e => { searchState.hasRealWeb = e.target.checked; });
   body.querySelector('#ps-low-rating').addEventListener('change', e => { searchState.lowRating = e.target.checked; });
+  body.querySelector('#ps-high-rating').addEventListener('change', e => { searchState.highRating = e.target.checked; });
   body.querySelector('#ps-few-reviews').addEventListener('change', e => { searchState.fewReviews = e.target.checked; });
+  body.querySelector('#ps-many-reviews').addEventListener('change', e => { searchState.manyReviews = e.target.checked; });
+  body.querySelector('#ps-no-phone').addEventListener('change', e => { searchState.noPhone = e.target.checked; });
   body.querySelector('#ps-search').addEventListener('click', () => doSearch(body, apiKey));
 }
 
@@ -272,9 +342,20 @@ function renderResultsArea() {
 
 function applyClientFilters(places) {
   return places.filter(p => {
-    if (searchState.noWebsite && p.websiteUri) return false;
+    const web = p.websiteUri || null;
+    const social = isSocialWeb(web);
+    // presencia web
+    if (searchState.noWebsite && web) return false;
+    if (searchState.socialWebOnly && (!web || !social)) return false;
+    if (searchState.hasRealWeb && (!web || social)) return false;
+    // valoración
     if (searchState.lowRating && (p.rating == null || p.rating >= 4)) return false;
+    if (searchState.highRating && (p.rating == null || p.rating < 4.5)) return false;
+    // reseñas
     if (searchState.fewReviews && (p.userRatingCount == null || p.userRatingCount >= 30)) return false;
+    if (searchState.manyReviews && (p.userRatingCount == null || p.userRatingCount < 100)) return false;
+    // otros
+    if (searchState.noPhone && p.nationalPhoneNumber) return false;
     return true;
   });
 }
@@ -294,9 +375,13 @@ function placeCard(place) {
     ? `<span class="prosp-reviews ${place.userRatingCount < 30 ? 'few' : ''}">${place.userRatingCount} reseña${place.userRatingCount === 1 ? '' : 's'}</span>`
     : '';
 
-  const webBadge = place.websiteUri
-    ? `<a class="prosp-badge web" href="${esc(safeUrl(place.websiteUri))}" target="_blank" rel="noopener nofollow" title="${esc(place.websiteUri)}" onclick="event.stopPropagation()">${ICONS.globe} Tiene web</a>`
-    : `<span class="prosp-badge no-web">${ICONS.globe} Sin web</span>`;
+  const webUrl = place.websiteUri || null;
+  const social = isSocialWeb(webUrl);
+  const webBadge = !webUrl
+    ? `<span class="prosp-badge no-web">${ICONS.globe} Sin web</span>`
+    : social
+      ? `<a class="prosp-badge social-web" href="${esc(safeUrl(webUrl))}" target="_blank" rel="noopener nofollow" title="${esc(webUrl)}" onclick="event.stopPropagation()">${ICONS.globe} Solo redes sociales</a>`
+      : `<a class="prosp-badge web" href="${esc(safeUrl(webUrl))}" target="_blank" rel="noopener nofollow" title="${esc(webUrl)}" onclick="event.stopPropagation()">${ICONS.globe} Tiene web propia</a>`;
 
   const typeLabel = getTypeLabel(place.types);
 
@@ -314,6 +399,7 @@ function placeCard(place) {
       <div class="prosp-card-badges">${webBadge}</div>
       <div class="prosp-card-actions">
         <a class="btn btn-ghost btn-sm" href="${esc(place.googleMapsUri || '#')}" target="_blank" rel="noopener nofollow" onclick="event.stopPropagation()">${ICONS.map} Maps</a>
+        ${place.googleMapsUri ? `<a class="btn btn-ghost btn-sm" href="${esc(place.googleMapsUri.replace('/maps/place/', '/maps/place/').replace('?', '/reviews?') || '#')}" target="_blank" rel="noopener nofollow" title="Ver si responden a reseñas" onclick="event.stopPropagation()">★ Reseñas</a>` : ''}
         ${!isVetoed ? `
           <button class="btn btn-sm ${isSaved ? 'btn-ghost saved-active' : 'btn-primary'} btn-save" data-pid="${pid}" title="${isSaved ? 'Ya guardado' : 'Guardar'}">
             ${ICONS.bookmark} ${isSaved ? 'Guardado' : 'Guardar'}
@@ -420,7 +506,8 @@ async function doSearch(body, apiKey) {
     let all = [];
     let pageToken = null;
 
-    for (let step = 0; step < 3 && all.length < MAX_RESULTS; step++) {
+    const target = searchState.maxResults;
+    for (let step = 0; step < Math.ceil(target / 20) && all.length < target; step++) {
       setLoadingProgress(body, step);
       const data = await fetchBatch(apiKey, zone, pageToken);
       const batch = data.places || [];
@@ -429,7 +516,7 @@ async function doSearch(body, apiKey) {
       if (!pageToken || batch.length === 0) break;
     }
 
-    searchState.results = all.slice(0, MAX_RESULTS);
+    searchState.results = all.slice(0, target);
   } catch (err) {
     searchState.results = [];
     toast(`Error en la búsqueda: ${err.message}`, 'err');
