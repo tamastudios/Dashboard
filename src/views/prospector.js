@@ -392,9 +392,11 @@ async function fetchBatch(apiKey, zone, pageToken = null) {
   if (searchState.category) reqBody.includedType = searchState.category;
   if (pageToken) reqBody.pageToken = pageToken;
 
-  const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+  // La clave va en la URL (query param) para evitar problemas CORS con cabeceras custom
+  const url = `https://places.googleapis.com/v1/places:searchText?key=${encodeURIComponent(apiKey)}&fields=${encodeURIComponent(FIELD_MASK)}`;
+  const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': FIELD_MASK },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(reqBody)
   });
   if (!res.ok) {
