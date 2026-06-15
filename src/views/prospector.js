@@ -121,8 +121,8 @@ export async function renderProspector(root) {
       renderTab(root, apiKey);
     }));
 
-  // cargar prospectos guardados si no se han cargado
-  if (!state.prospects.length) {
+  // cargar prospectos una sola vez (sin emit para evitar bucle de re-render)
+  if (!state.prospectsLoaded) {
     try { await loadProspects(); } catch { /* tolera si tabla no existe aún */ }
   }
 

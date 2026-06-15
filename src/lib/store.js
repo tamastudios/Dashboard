@@ -14,6 +14,7 @@ export const state = {
   activity: [],
   notifications: [],
   prospects: [],     // prospectos guardados/vetados (módulo Prospector)
+  prospectsLoaded: false,
   loaded: false,
   online: true       // estado de la conexión en tiempo real
 };
@@ -150,6 +151,7 @@ export function teardown() {
   if (channel) { supabase.removeChannel(channel); channel = null; }
   state.loaded = false;
   state.profiles = []; state.companies = []; state.tasks = []; state.activity = []; state.notifications = []; state.prospects = [];
+  state.prospectsLoaded = false;
   state.user = null; state.me = null;
 }
 
@@ -313,11 +315,13 @@ export const prospectByPlaceId = placeId =>
   state.prospects.find(p => p.place_id === placeId) || null;
 
 export async function loadProspects() {
+  if (state.prospectsLoaded) return;
   const { data, error } = await supabase
     .from('prospects').select('*').order('created_at', { ascending: false });
   if (error) throw error;
   state.prospects = data;
-  emit();
+  state.prospectsLoaded = true;
+  // sin emit() — evita el bucle de re-render
 }
 
 export async function saveProspect(fields) {
