@@ -235,13 +235,17 @@ function renderSearchTab(body, apiKey) {
 
 function renderResultsArea() {
   if (searchState.loading) {
-    return `<div class="prosp-loading"><div class="prosp-spinner"></div><p>Buscando negocios en ${esc(searchState.zone)}…</p></div>`;
+    return `<div class="prosp-loading">
+      <div class="prosp-spinner"></div>
+      <p>${esc(searchState.loadingMsg || `Buscando negocios en ${searchState.zone}…`)}</p>
+      <div class="prosp-progress"><div class="prosp-progress-bar" id="ps-progress-bar" style="width:${searchState.loadingPct || 10}%"></div></div>
+    </div>`;
   }
   if (!searchState.searched) {
     return `<div class="prosp-empty-state">
       <div class="prosp-empty-ico">${ICONS.prospector}</div>
       <h3>Encuentra tu próximo cliente</h3>
-      <p>Busca negocios locales que puedan necesitar tu ayuda: sin web, mal posicionados, con pocas reseñas o que no responden a sus clientes.</p>
+      <p>Selecciona zona y radio, añade un tipo de negocio o categoría si quieres filtrar, y pulsa Buscar. Sin filtros te mostramos hasta 50 negocios de la zona.</p>
     </div>`;
   }
 
@@ -251,22 +255,19 @@ function renderResultsArea() {
     return `<div class="prosp-empty-state">
       <div class="prosp-empty-ico">🔍</div>
       <h3>Sin resultados</h3>
-      <p>No se encontraron negocios con los filtros actuales. Prueba a ampliar la zona o quitar algún filtro.</p>
+      <p>No se encontraron negocios con los filtros actuales. Prueba a ampliar el radio o quitar algún filtro.</p>
     </div>`;
   }
 
+  const total = searchState.results.length;
+  const filtered = results.length;
   return `
     <div class="prosp-results-head">
-      <span>${results.length} negocio${results.length === 1 ? '' : 's'} encontrado${results.length === 1 ? '' : 's'}
-        ${searchState.results.length !== results.length ? ` (filtrados de ${searchState.results.length})` : ''}
-      </span>
+      <span>${filtered} negocio${filtered === 1 ? '' : 's'}${filtered !== total ? ` (filtrados de ${total})` : ''} · ${esc(searchState.zone)}</span>
     </div>
     <div class="prosp-grid">
       ${results.map(p => placeCard(p)).join('')}
-    </div>
-    ${searchState.nextPageToken ? `<div style="text-align:center;margin-top:16px">
-      <button class="btn btn-ghost" id="ps-more">Cargar más resultados</button>
-    </div>` : ''}`;
+    </div>`;
 }
 
 function applyClientFilters(places) {
@@ -345,66 +346,88 @@ function getTypeLabel(types) {
 
 /* ============================================================
    BÚSQUEDA GOOGLE PLACES API (New)
+   Busca hasta 50 negocios en 3 tandas automáticas de 20.
+   Sin query ni categoría muestra todos los negocios de la zona.
    ============================================================ */
-async function doSearch(body, apiKey) {
-  const query = searchState.query.trim();
-  const zone = ZONES.find(z => z.id === searchState.zone) || ZONES[0];
+const FIELD_MASK = [
+  'places.id', 'places.displayName', 'places.formattedAddress',
+  'places.nationalPhoneNumber', 'places.internationalPhoneNumber',
+  'places.websiteUri', 'places.rating', 'places.userRatingCount',
+  'places.types', 'places.googleMapsUri', 'nextPageToken'
+].join(',');
 
-  if (!query && !searchState.category) {
-    toast('Escribe un tipo de negocio o selecciona una categoría', 'err');
-    return;
+const MAX_RESULTS = 50;
+const PROGRESS_MSGS = [
+  'Buscando negocios…',
+  'Cargando más resultados…',
+  'Últimos resultados…',
+];
+
+function buildTextQuery(zone) {
+  const q = searchState.query.trim();
+  if (q) return `${q} en ${zone.id}`;
+  if (searchState.category) {
+    const cat = CATEGORIES.find(c => c.value === searchState.category);
+    return `${cat?.label || searchState.category} en ${zone.id}`;
   }
+  return `negocios en ${zone.id}`;
+}
+
+function setLoadingProgress(body, step) {
+  searchState.loadingMsg = PROGRESS_MSGS[Math.min(step, 2)];
+  searchState.loadingPct = Math.round(((step + 1) / 3) * 85);
+  const bar = body.querySelector('#ps-progress-bar');
+  const txt = body.querySelector('.prosp-loading p');
+  if (bar) bar.style.width = searchState.loadingPct + '%';
+  if (txt) txt.textContent = searchState.loadingMsg;
+}
+
+async function fetchBatch(apiKey, zone, pageToken = null) {
+  const reqBody = {
+    textQuery: buildTextQuery(zone),
+    maxResultCount: 20,
+    languageCode: 'es',
+    locationBias: { circle: { center: { latitude: zone.lat, longitude: zone.lng }, radius: searchState.radius } }
+  };
+  if (searchState.category) reqBody.includedType = searchState.category;
+  if (pageToken) reqBody.pageToken = pageToken;
+
+  const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': FIELD_MASK },
+    body: JSON.stringify(reqBody)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+async function doSearch(body, apiKey) {
+  const zone = ZONES.find(z => z.id === searchState.zone) || ZONES[0];
 
   searchState.loading = true;
   searchState.searched = true;
   searchState.results = [];
-  searchState.nextPageToken = null;
+  searchState.loadingMsg = PROGRESS_MSGS[0];
+  searchState.loadingPct = 10;
   updateResultsPanel(body);
 
   try {
-    const textQuery = query
-      ? `${query} en ${zone.id}`
-      : `${CATEGORIES.find(c => c.value === searchState.category)?.label || searchState.category} en ${zone.id}`;
+    let all = [];
+    let pageToken = null;
 
-    const reqBody = {
-      textQuery,
-      maxResultCount: 20,
-      languageCode: 'es',
-      locationBias: {
-        circle: {
-          center: { latitude: zone.lat, longitude: zone.lng },
-          radius: searchState.radius
-        }
-      }
-    };
-
-    if (searchState.category) {
-      reqBody.includedType = searchState.category;
+    for (let step = 0; step < 3 && all.length < MAX_RESULTS; step++) {
+      setLoadingProgress(body, step);
+      const data = await fetchBatch(apiKey, zone, pageToken);
+      const batch = data.places || [];
+      all = [...all, ...batch];
+      pageToken = data.nextPageToken || null;
+      if (!pageToken || batch.length === 0) break;
     }
 
-    const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': [
-          'places.id', 'places.displayName', 'places.formattedAddress',
-          'places.nationalPhoneNumber', 'places.internationalPhoneNumber',
-          'places.websiteUri', 'places.rating', 'places.userRatingCount',
-          'places.types', 'places.googleMapsUri', 'nextPageToken'
-        ].join(',')
-      },
-      body: JSON.stringify(reqBody)
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err?.error?.message || `HTTP ${res.status}`);
-    }
-
-    const data = await res.json();
-    searchState.results = data.places || [];
-    searchState.nextPageToken = data.nextPageToken || null;
+    searchState.results = all.slice(0, MAX_RESULTS);
   } catch (err) {
     searchState.results = [];
     toast(`Error en la búsqueda: ${err.message}`, 'err');
@@ -416,52 +439,12 @@ async function doSearch(body, apiKey) {
   }
 }
 
-async function loadMoreResults(body, apiKey) {
-  if (!searchState.nextPageToken) return;
-  const btn = body.querySelector('#ps-more');
-  if (btn) { btn.disabled = true; btn.textContent = 'Cargando…'; }
-
-  const zone = ZONES.find(z => z.id === searchState.zone) || ZONES[0];
-  try {
-    const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': [
-          'places.id', 'places.displayName', 'places.formattedAddress',
-          'places.nationalPhoneNumber', 'places.websiteUri',
-          'places.rating', 'places.userRatingCount', 'places.types',
-          'places.googleMapsUri', 'nextPageToken'
-        ].join(',')
-      },
-      body: JSON.stringify({
-        textQuery: searchState.query ? `${searchState.query} en ${zone.id}` : `negocios en ${zone.id}`,
-        maxResultCount: 20,
-        languageCode: 'es',
-        pageToken: searchState.nextPageToken,
-        locationBias: { circle: { center: { latitude: zone.lat, longitude: zone.lng }, radius: searchState.radius } }
-      })
-    });
-    const data = await res.json();
-    searchState.results = [...searchState.results, ...(data.places || [])];
-    searchState.nextPageToken = data.nextPageToken || null;
-  } catch (err) {
-    toast('No se pudieron cargar más resultados', 'err');
-  } finally {
-    updateResultsPanel(body);
-    attachResultsEvents(body, apiKey);
-  }
-}
-
 function updateResultsPanel(body) {
   const panel = body.querySelector('#ps-results');
   if (panel) panel.innerHTML = renderResultsArea();
 }
 
 function attachResultsEvents(body, apiKey) {
-  body.querySelector('#ps-more')?.addEventListener('click', () => loadMoreResults(body, apiKey));
-
   body.querySelectorAll('.btn-save').forEach(btn => {
     btn.addEventListener('click', async e => {
       e.stopPropagation();
