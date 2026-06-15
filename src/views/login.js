@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase.js';
 import { el, asset } from '../lib/ui.js';
-import { listVerifiedFactors, enrollTotp, verifyCode } from '../lib/mfa.js';
+import { listVerifiedFactors, enrollTotp, verifyCode, trustDevice } from '../lib/mfa.js';
 
 export function renderLogin(onSuccess, notice = null) {
   const app = document.getElementById('app');
@@ -183,7 +183,7 @@ export function renderResetPassword(onDone) {
 /* ============================================================
    MFA — paso de verificación en el login (usuario YA tiene 2FA)
    ============================================================ */
-export async function renderMfaChallenge(onDone) {
+export async function renderMfaChallenge(onDone, userId = null) {
   const app = document.getElementById('app');
   const factors = await listVerifiedFactors();
   const factorId = factors[0]?.id;
@@ -202,6 +202,10 @@ export async function renderMfaChallenge(onDone) {
           <input type="text" id="mfa-code" inputmode="numeric" autocomplete="one-time-code"
             maxlength="6" placeholder="123456" style="text-align:center;letter-spacing:.35em;font-size:1.2rem" />
         </div>
+        <label class="mfa-trust-label">
+          <input type="checkbox" id="mfa-trust" checked />
+          Recordar este dispositivo durante 30 días
+        </label>
         <button type="submit" class="btn btn-primary btn-block" id="mfa-btn">Verificar</button>
       </form>
       <button class="login-link" id="mfa-logout">Cancelar e iniciar sesión de nuevo</button>
@@ -219,6 +223,7 @@ export async function renderMfaChallenge(onDone) {
     btn.disabled = true; btn.textContent = 'Verificando…';
     try {
       await verifyCode(factorId, code);
+      if (userId && document.getElementById('mfa-trust')?.checked) trustDevice(userId);
       onDone();
     } catch (err) {
       errBox.textContent = 'Código incorrecto o caducado. Inténtalo otra vez.';

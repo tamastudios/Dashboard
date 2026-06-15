@@ -7,7 +7,7 @@ import { initTheme, toggleTheme, getTheme } from './lib/theme.js';
 import { startIdle, stopIdle, isExpiredOnLoad, clearActivity } from './lib/idle.js';
 import { esc, avatarHTML, roleLabel, ICONS, debounce, asset } from './lib/ui.js';
 import { renderLogin, renderSetup, renderResetPassword, renderMfaChallenge, renderMfaEnroll } from './views/login.js';
-import { getAAL, listVerifiedFactors } from './lib/mfa.js';
+import { getAAL, listVerifiedFactors, isDeviceTrusted, trustDevice } from './lib/mfa.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderCompanies } from './views/companies.js';
 import { renderTasks } from './views/tasks.js';
@@ -81,7 +81,9 @@ async function afterLogin(user) {
   // 1) ¿tiene 2FA y debe verificar el segundo factor?
   const aal = await getAAL();
   if (aal.currentLevel === 'aal1' && aal.nextLevel === 'aal2') {
-    renderMfaChallenge(() => enterApp(user));
+    // Dispositivo de confianza → saltamos el challenge
+    if (isDeviceTrusted(user.id)) { enterApp(user); return; }
+    renderMfaChallenge(() => enterApp(user), user.id);
     return;
   }
   // 2) ¿es admin o socio sin 2FA configurado? → alta obligatoria
@@ -89,7 +91,11 @@ async function afterLogin(user) {
     const { data } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     if (data?.role === 'admin' || data?.role === 'socio') {
       const factors = await listVerifiedFactors();
-      if (factors.length === 0) { renderMfaEnroll(() => enterApp(user)); return; }
+      if (factors.length === 0) {
+        // Al configurar 2FA por primera vez, se confía en este dispositivo automáticamente
+        renderMfaEnroll(() => { trustDevice(user.id); enterApp(user); });
+        return;
+      }
     }
   } catch (e) { /* si falla la consulta no bloqueamos el acceso */ }
   enterApp(user);

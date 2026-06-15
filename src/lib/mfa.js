@@ -40,3 +40,32 @@ export async function unenroll(factorId) {
   const { error } = await supabase.auth.mfa.unenroll({ factorId });
   if (error) throw error;
 }
+
+/* ============================================================
+   DISPOSITIVOS DE CONFIANZA
+   Token en localStorage por usuario. Expira a los 30 días.
+   ============================================================ */
+const TRUST_KEY = (uid) => `tama_trust_${uid}`;
+const TRUST_DAYS = 30;
+
+export function trustDevice(userId) {
+  if (!userId) return;
+  localStorage.setItem(TRUST_KEY(userId), JSON.stringify({
+    expires: Date.now() + TRUST_DAYS * 86_400_000
+  }));
+}
+
+export function isDeviceTrusted(userId) {
+  if (!userId) return false;
+  try {
+    const raw = localStorage.getItem(TRUST_KEY(userId));
+    if (!raw) return false;
+    const { expires } = JSON.parse(raw);
+    if (Date.now() > expires) { localStorage.removeItem(TRUST_KEY(userId)); return false; }
+    return true;
+  } catch { return false; }
+}
+
+export function clearDeviceTrust(userId) {
+  if (userId) localStorage.removeItem(TRUST_KEY(userId));
+}
