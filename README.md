@@ -89,7 +89,8 @@ VITE_SUPABASE_ANON_KEY=eyJ...tu-anon-key...
 1. Crea un proyecto gratis en [supabase.com](https://supabase.com).
 2. Ve al **SQL Editor**, pega todo el contenido de [`supabase/schema.sql`](supabase/schema.sql) y pulsa **Run**.
    Esto crea las tablas, los índices, el trigger de creación de perfiles, las políticas de seguridad (RLS) y activa el *realtime*.
-   - Después, ejecuta también [`supabase/prospects.sql`](supabase/prospects.sql) (módulo Prospector) y [`supabase/invoices.sql`](supabase/invoices.sql) (módulo Facturas).
+   - Después, ejecuta también [`supabase/prospects.sql`](supabase/prospects.sql) (módulo Prospector), [`supabase/invoices.sql`](supabase/invoices.sql) (módulo Facturas) y [`supabase/support.sql`](supabase/support.sql) (módulo Soporte).
+   - Para el formulario de soporte de clientes, despliega la Edge Function: `supabase functions deploy support-intake --no-verify-jwt` (ver [`support-form/README.md`](support-form/README.md)).
 3. Crea los usuarios en **Authentication → Users → Add user** (email + contraseña). Empieza por los **dos socios**.
    - El **primer usuario** que se cree recibe el rol `admin` automáticamente.
    - El perfil de cada usuario se crea solo gracias al trigger.

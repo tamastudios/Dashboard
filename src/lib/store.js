@@ -12,6 +12,7 @@ export const state = {
   companies: [],
   tasks: [],
   invoices: [],
+  supportRequests: [],
   activity: [],
   notifications: [],
   prospects: [],     // prospectos guardados/vetados (módulo Prospector)
@@ -41,6 +42,7 @@ export const profileById = id => state.profiles.find(p => p.id === id) || null;
 export const companyById = id => state.companies.find(c => c.id === id) || null;
 export const taskById = id => state.tasks.find(t => t.id === id) || null;
 export const invoiceById = id => state.invoices.find(i => i.id === id) || null;
+export const supportById = id => state.supportRequests.find(s => s.id === id) || null;
 
 function upsertLocal(list, row) {
   const i = list.findIndex(x => x.id === row.id);
@@ -56,11 +58,12 @@ function removeLocal(list, id) {
    ============================================================ */
 export async function loadAll(user) {
   state.user = user;
-  const [profiles, companies, tasks, invoices, activity, notifications] = await Promise.all([
+  const [profiles, companies, tasks, invoices, support, activity, notifications] = await Promise.all([
     supabase.from('profiles').select('id,name,email,avatar_url,role,created_at').order('created_at'),
     supabase.from('companies').select('*').order('created_at', { ascending: false }),
     supabase.from('tasks').select('*').order('created_at', { ascending: false }),
     supabase.from('invoices').select('*').order('issue_date', { ascending: false }),
+    supabase.from('support_requests').select('*').order('created_at', { ascending: false }),
     supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(80),
     supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(50)
   ]);
@@ -71,6 +74,7 @@ export async function loadAll(user) {
   state.companies = companies.data;
   state.tasks = tasks.data;
   state.invoices = invoices.error ? [] : invoices.data;          // tolera si aún no existe la tabla
+  state.supportRequests = support.error ? [] : support.data;     // tolera si aún no existe la tabla
   state.activity = activity.data;
   state.notifications = notifications.error ? [] : notifications.data;  // tolera si aún no existe la tabla
   state.me = state.profiles.find(p => p.id === user.id) || null;
@@ -90,6 +94,7 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, p => applyChange(state.companies, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, p => applyChange(state.tasks, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, p => applyChange(state.invoices, p))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'support_requests' }, p => applyChange(state.supportRequests, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, p => {
       applyChange(state.profiles, p);
       if (state.user) state.me = state.profiles.find(x => x.id === state.user.id) || state.me;
@@ -132,17 +137,19 @@ export async function reconnect() {
 }
 
 async function refreshData() {
-  const [profiles, companies, tasks, invoices, activity] = await Promise.all([
+  const [profiles, companies, tasks, invoices, support, activity] = await Promise.all([
     supabase.from('profiles').select('id,name,email,avatar_url,role,created_at').order('created_at'),
     supabase.from('companies').select('*').order('created_at', { ascending: false }),
     supabase.from('tasks').select('*').order('created_at', { ascending: false }),
     supabase.from('invoices').select('*').order('issue_date', { ascending: false }),
+    supabase.from('support_requests').select('*').order('created_at', { ascending: false }),
     supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(80)
   ]);
   if (!profiles.error) state.profiles = profiles.data;
   if (!companies.error) state.companies = companies.data;
   if (!tasks.error) state.tasks = tasks.data;
   if (!invoices.error) state.invoices = invoices.data;
+  if (!support.error) state.supportRequests = support.data;
   if (!activity.error) state.activity = activity.data;
   if (state.user) state.me = state.profiles.find(p => p.id === state.user.id) || state.me;
   emit();
@@ -157,7 +164,7 @@ function applyChange(list, payload) {
 export function teardown() {
   if (channel) { supabase.removeChannel(channel); channel = null; }
   state.loaded = false;
-  state.profiles = []; state.companies = []; state.tasks = []; state.invoices = []; state.activity = []; state.notifications = []; state.prospects = [];
+  state.profiles = []; state.companies = []; state.tasks = []; state.invoices = []; state.supportRequests = []; state.activity = []; state.notifications = []; state.prospects = [];
   state.prospectsLoaded = false;
   state.user = null; state.me = null;
 }
@@ -321,6 +328,29 @@ export async function deleteInvoice(id) {
   if (error) throw error;
   removeLocal(state.invoices, id); emit();
   logActivity('eliminó la factura', 'invoice', number);
+}
+
+/* ============================================================
+   SOPORTE (solicitudes entrantes de clientes)
+   Las solicitudes las crea la Edge Function "support-intake".
+   Aquí solo se gestionan (estado, prioridad, asignación, borrado).
+   ============================================================ */
+export async function updateSupportRequest(id, fields) {
+  const { data, error } = await supabase.from('support_requests')
+    .update({ ...fields, updated_at: new Date().toISOString() })
+    .eq('id', id).select().single();
+  if (error) throw error;
+  upsertLocal(state.supportRequests, data); emit();
+  logActivity('actualizó la solicitud de', 'support', data.name);
+  return data;
+}
+
+export async function deleteSupportRequest(id) {
+  const name = supportById(id)?.name || '';
+  const { error } = await supabase.from('support_requests').delete().eq('id', id);
+  if (error) throw error;
+  removeLocal(state.supportRequests, id); emit();
+  logActivity('eliminó la solicitud de', 'support', name);
 }
 
 /* ============================================================

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soporte · TAMA Studios</title>
+<style>
+  :root{
+    --bg:#ffffff; --ink:#0b1020; --muted:#667085; --line:#e6e8ee;
+    --primary:#4f46e5; --primary-deep:#4338ca; --green:#16a34a; --red:#dc2626; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:transparent}
+  .sf-card{max-width:520px;margin:0 auto;background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:26px 24px}
+  .sf-card h1{font-size:1.3rem;margin:0 0 4px}
+  .sf-card .sf-sub{color:var(--muted);font-size:.9rem;margin:0 0 20px}
+  .sf-fld{margin-bottom:14px}
+  .sf-fld label{display:block;font-size:.82rem;font-weight:600;margin-bottom:6px}
+  .sf-fld input,.sf-fld textarea{
+    width:100%;padding:11px 13px;border:1.5px solid var(--line);border-radius:var(--radius);
+    font:inherit;font-size:.95rem;color:var(--ink);background:#fff;outline:none;transition:border-color .15s
+  }
+  .sf-fld input:focus,.sf-fld textarea:focus{border-color:var(--primary)}
+  .sf-fld textarea{resize:vertical;min-height:120px}
+  .sf-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .sf-hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+  .sf-btn{
+    width:100%;padding:12px 16px;border:none;border-radius:999px;background:var(--primary);color:#fff;
+    font:inherit;font-weight:700;font-size:1rem;cursor:pointer;transition:background .15s,opacity .15s
+  }
+  .sf-btn:hover{background:var(--primary-deep)}
+  .sf-btn:disabled{opacity:.6;cursor:default}
+  .sf-msg{margin-top:14px;font-size:.9rem;padding:11px 13px;border-radius:var(--radius);display:none}
+  .sf-msg.ok{display:block;background:#dcfce7;color:#15803d}
+  .sf-msg.err{display:block;background:#fee2e2;color:#b91c1c}
+  .sf-foot{margin-top:16px;text-align:center;font-size:.74rem;color:var(--muted)}
+  @media (max-width:480px){ .sf-row{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+  <form class="sf-card" id="sf-form" novalidate>
+    <h1>¿Necesitas ayuda?</h1>
+    <p class="sf-sub">Cuéntanos qué ocurre y te respondemos lo antes posible.</p>
+
+    <div class="sf-row">
+      <div class="sf-fld"><label for="sf-name">Nombre *</label><input id="sf-name" name="name" required></div>
+      <div class="sf-fld"><label for="sf-email">Email *</label><input id="sf-email" name="email" type="email" required></div>
+    </div>
+    <div class="sf-row">
+      <div class="sf-fld"><label for="sf-company">Empresa</label><input id="sf-company" name="company"></div>
+      <div class="sf-fld"><label for="sf-phone">Teléfono</label><input id="sf-phone" name="phone"></div>
+    </div>
+    <div class="sf-fld"><label for="sf-subject">Asunto</label><input id="sf-subject" name="subject"></div>
+    <div class="sf-fld"><label for="sf-message">¿En qué podemos ayudarte? *</label><textarea id="sf-message" name="message" required></textarea></div>
+
+    <!-- honeypot anti-spam: invisible para humanos -->
+    <div class="sf-hp" aria-hidden="true"><label>No rellenar<input name="website" tabindex="-1" autocomplete="off"></label></div>
+
+    <button class="sf-btn" type="submit" id="sf-btn">Enviar solicitud</button>
+    <div class="sf-msg" id="sf-msg"></div>
+    <div class="sf-foot">Soporte de TAMA Studios</div>
+  </form>
+
+<script>
+  // ⬇️ EDITAR: pega aquí la URL de tu Edge Function "support-intake"
+  // (Supabase → Edge Functions → support-intake → URL). Algo como:
+  // https://TU-PROYECTO.supabase.co/functions/v1/support-intake
+  const FUNCTION_URL = "https://TU-PROYECTO.supabase.co/functions/v1/support-intake";
+
+  const form = document.getElementById('sf-form');
+  const btn = document.getElementById('sf-btn');
+  const msg = document.getElementById('sf-msg');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    msg.className = 'sf-msg';
+    const data = Object.fromEntries(new FormData(form).entries());
+    if (!data.name || !data.email || !data.message) {
+      msg.className = 'sf-msg err'; msg.textContent = 'Completa nombre, email y mensaje.'; return;
+    }
+    btn.disabled = true; btn.textContent = 'Enviando…';
+    try {
+      const res = await fetch(FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const out = await res.json().catch(() => ({}));
+      if (res.ok && out.ok) {
+        form.reset();
+        msg.className = 'sf-msg ok';
+        msg.textContent = '¡Gracias! Hemos recibido tu solicitud y te contactaremos pronto.';
+      } else {
+        msg.className = 'sf-msg err';
+        msg.textContent = out.error || 'No se pudo enviar. Inténtalo de nuevo en un momento.';
+      }
+    } catch (_) {
+      msg.className = 'sf-msg err';
+      msg.textContent = 'Error de conexión. Inténtalo de nuevo.';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Enviar solicitud';
+    }
+  });
+</script>
+</body>
+</html>
