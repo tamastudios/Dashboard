@@ -1,10 +1,12 @@
 import {
   esc, chip, fmtDate, relTime, avatarHTML, isOverdue, fmtEUR, todayISO,
-  statusMeta, priorityMeta, TASK_STATUSES, INVOICE_STATUSES, ICONS
+  statusMeta, priorityMeta, statusBadge, TASK_STATUSES, INVOICE_STATUSES, ICONS
 } from '../lib/ui.js';
+import { progressBar } from '../lib/components.js';
 import { state, companyById, profileById } from '../lib/store.js';
 import { taskModal, taskDetailModal } from './forms.js';
 import { barChart, donutChart, hbarChart } from '../lib/charts.js';
+import { projects, leads, agents, webs, tickets } from '../lib/mock.js';
 
 const CHART_COLORS = {
   gray: '#94a3b8', blue: '#3b82f6', purple: '#a855f7', red: '#ef4444', green: '#22c55e', orange: '#f59e0b'
@@ -73,6 +75,19 @@ export function renderDashboard(root, nav) {
   const cobradoYear = sumE(issuedYear.filter(i => i.status === 'pagada'), 'total');
   const pendienteAmount = sumE(pendInv, 'total');
   const ivaYear = sumE(issuedYear, 'vat_amount');
+  const monthStart = `${year}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
+  const ingresosMes = sumE(issued.filter(i => i.status === 'pagada' && (i.paid_date || i.issue_date || '') >= monthStart), 'total');
+
+  /* ----- negocio (mock hasta conectar tablas) ----- */
+  const projActive = projects.filter(p => p.status !== 'entregado');
+  const leadsNew = leads.filter(l => l.status === 'nuevo');
+  const agentsActive = agents.filter(a => a.status === 'activo');
+  const websDev = webs.filter(w => w.status === 'desarrollo' || w.status === 'diseno');
+  const ticketsOpen = tickets.filter(t => t.status === 'abierto' || t.status === 'progreso');
+  const nextDeliveries = projects
+    .filter(p => p.status !== 'entregado' && p.due >= todayISO())
+    .sort((a, b) => a.due.localeCompare(b.due))
+    .slice(0, 5);
 
   const stat = (num, lbl, icon, color, extra = '') => `
     <div class="card stat-card">
@@ -95,11 +110,23 @@ export function renderDashboard(root, nav) {
     </div>
 
     <div class="stats-grid">
-      ${stat(activeCompanies, 'Empresas activas', ICONS.companies, 'green')}
-      ${stat(pending, 'Pendientes', ICONS.clock, 'gray')}
-      ${stat(progress, 'En progreso', ICONS.activity, 'blue')}
-      ${stat(completed, 'Completadas', ICONS.check, 'purple')}
-      ${stat(overdue.length, 'Vencidas / urgentes', ICONS.alert, 'red')}
+      ${stat(projActive.length, 'Proyectos activos', ICONS.projects, 'blue')}
+      ${stat(leadsNew.length, 'Leads nuevos', ICONS.leads, 'purple')}
+      ${stat(fmtEUR(ingresosMes), 'Ingresos del mes', ICONS.euro, 'green')}
+      ${stat(pendInv.length, 'Facturas pendientes', ICONS.invoices, 'orange', muted(fmtEUR(pendienteAmount)))}
+      ${stat(agentsActive.length, 'Agentes IA activos', ICONS.agents, 'blue')}
+      ${stat(websDev.length, 'Webs en desarrollo', ICONS.globe, 'purple')}
+      ${stat(ticketsOpen.length, 'Tickets abiertos', ICONS.tickets, 'red')}
+    </div>
+    <div class="charts-grid two" style="margin-bottom:22px">
+      <div class="card">
+        <h2 class="card-title">Proyectos activos <span class="more" data-nav="proyectos">Ver todos →</span></h2>
+        <div id="dash-projects"></div>
+      </div>
+      <div class="card">
+        <h2 class="card-title">Próximas entregas <span class="more" data-nav="entregas">Ver QA →</span></h2>
+        <div id="dash-deliveries"></div>
+      </div>
     </div>
 
     <div class="charts-grid">
@@ -224,6 +251,24 @@ export function renderDashboard(root, nav) {
     ? recent.map(activityLine).join('')
     : `<p style="color:var(--muted);font-size:.85rem">Sin actividad todavía.</p>`;
 
+  // proyectos activos
+  const projWrap = root.querySelector('#dash-projects');
+  if (projWrap) {
+    projWrap.innerHTML = projActive.length
+      ? projActive.slice(0, 5).map(projectLine).join('')
+      : `<p style="color:var(--muted);font-size:.87rem;padding:8px 0">Sin proyectos activos.</p>`;
+    projWrap.querySelectorAll('[data-nav-proj]').forEach(r => r.addEventListener('click', () => nav('proyectos')));
+  }
+
+  // próximas entregas
+  const delWrap = root.querySelector('#dash-deliveries');
+  if (delWrap) {
+    delWrap.innerHTML = nextDeliveries.length
+      ? nextDeliveries.map(deliveryLine).join('')
+      : `<p style="color:var(--muted);font-size:.87rem;padding:8px 0">No hay entregas próximas.</p>`;
+    delWrap.querySelectorAll('[data-nav-proj]').forEach(r => r.addEventListener('click', () => nav('proyectos')));
+  }
+
   // facturas pendientes de pago
   const invWrap = root.querySelector('#dash-invoices');
   if (invWrap) {
@@ -244,6 +289,21 @@ function invoiceLine(i) {
   return `<div class="task-line" data-nav-inv="1" style="cursor:pointer">
     <span class="tl-title">${esc(i.number)} · ${esc(i.client_name)}</span>
     <span class="tl-meta" style="${overdue ? 'color:var(--red);font-weight:600' : ''}">${fmtEUR(i.total)}${i.due_date ? ' · vence ' + fmtDate(i.due_date) : ''}${overdue ? ' ⚠' : ''}</span>
+  </div>`;
+}
+
+function projectLine(p) {
+  return `<div class="task-line" data-nav-proj="1" style="cursor:pointer;align-items:center">
+    <span class="tl-title">${esc(p.name)} <span style="color:var(--muted);font-weight:400">· ${esc(p.client)}</span></span>
+    <span style="display:flex;align-items:center;gap:8px;flex:none">${progressBar(p.progress)}<span class="tl-meta">${p.progress}%</span></span>
+  </div>`;
+}
+
+function deliveryLine(p) {
+  const soon = p.due <= todayISO();
+  return `<div class="task-line" data-nav-proj="1" style="cursor:pointer">
+    <span class="tl-title">${esc(p.name)} <span style="color:var(--muted);font-weight:400">· ${esc(p.client)}</span></span>
+    <span class="tl-meta" style="${soon ? 'color:var(--red);font-weight:600' : ''}">${fmtDate(p.due)}</span>
   </div>`;
 }
 

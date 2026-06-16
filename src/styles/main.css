@@ -160,14 +160,27 @@ img { max-width: 100%; display: block; }
 .sb-brand .name { font-weight: 800; letter-spacing: -.01em; font-size: 1.02rem; }
 .sb-brand .name span { color: var(--muted); font-weight: 500; }
 
-.sb-nav { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.sb-nav { flex: 1; display: flex; flex-direction: column; gap: 1px; overflow-y: auto; margin: 0 -6px; padding: 0 6px 6px; }
+.sb-nav::-webkit-scrollbar { width: 6px; }
+.sb-nav::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
+.sb-nav::-webkit-scrollbar-track { background: transparent; }
+.sb-group { margin-top: 13px; }
+.sb-group:first-child { margin-top: 0; }
+.sb-group-title {
+  font-size: .67rem; font-weight: 700; text-transform: uppercase; letter-spacing: .09em;
+  color: var(--muted); padding: 4px 12px 5px; opacity: .7;
+}
 .sb-link {
-  display: flex; align-items: center; gap: 11px; padding: 9px 12px;
-  border-radius: 9px; color: var(--muted); font-weight: 500; font-size: .92rem;
+  position: relative; display: flex; align-items: center; gap: 11px; padding: 8px 12px;
+  border-radius: 9px; color: var(--muted); font-weight: 500; font-size: .9rem;
   transition: background .15s, color .15s; width: 100%; text-align: left;
 }
 .sb-link:hover { background: var(--surface-2); color: var(--ink); }
 .sb-link.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.sb-link.active::before {
+  content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 17px; border-radius: 0 99px 99px 0; background: var(--primary);
+}
 .sb-link svg { width: 18px; height: 18px; flex: none; }
 .sb-link .badge {
   margin-left: auto; background: var(--red); color: #fff; font-size: .7rem;
@@ -858,3 +871,19 @@ tr:hover .row-actions { opacity: 1; }
   .inv-item-row { grid-template-columns: 1fr 64px 84px 32px; }
   .inv-item-row .it-sub { display: none; }
 }
+
+/* ============================================================
+   COMPONENTES SaaS (progress, celdas, mini-pills)
+   ============================================================ */
+.progress { height: 7px; background: var(--surface-2); border-radius: 99px; overflow: hidden; min-width: 84px; }
+.progress-fill { height: 100%; border-radius: 99px; transition: width .35s ease; }
+.cell-strong { font-weight: 600; color: var(--ink); }
+.cell-muted { color: var(--muted); font-size: .82rem; }
+.cell-mono { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 99px;
+  font-size: .74rem; font-weight: 600; background: var(--surface-2); color: var(--muted);
+}
+.pill svg { width: 12px; height: 12px; }
+.charts-grid.two { grid-template-columns: 1fr 1fr; }
+@media (max-width: 900px) { .charts-grid.two { grid-template-columns: 1fr; } }
