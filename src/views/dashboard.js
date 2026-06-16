@@ -1,14 +1,32 @@
 import {
-  esc, chip, fmtDate, relTime, avatarHTML, isOverdue,
-  statusMeta, priorityMeta, TASK_STATUSES, ICONS
+  esc, chip, fmtDate, relTime, avatarHTML, isOverdue, fmtEUR, todayISO,
+  statusMeta, priorityMeta, TASK_STATUSES, INVOICE_STATUSES, ICONS
 } from '../lib/ui.js';
 import { state, companyById, profileById } from '../lib/store.js';
 import { taskModal, taskDetailModal } from './forms.js';
 import { barChart, donutChart, hbarChart } from '../lib/charts.js';
 
 const CHART_COLORS = {
-  gray: '#94a3b8', blue: '#3b82f6', purple: '#a855f7', red: '#ef4444', green: '#22c55e'
+  gray: '#94a3b8', blue: '#3b82f6', purple: '#a855f7', red: '#ef4444', green: '#22c55e', orange: '#f59e0b'
 };
+
+/** Importe facturado (emitido) en cada uno de los últimos 6 meses. */
+function billedByMonth(invoices) {
+  const M = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  const now = new Date();
+  const out = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const start = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+    const nd = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    const end = `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, '0')}-01`;
+    const val = invoices
+      .filter(x => (x.issue_date || '') >= start && (x.issue_date || '') < end)
+      .reduce((s, x) => s + (Number(x.total) || 0), 0);
+    out.push({ label: M[d.getMonth()], value: Math.round(val), color: 'var(--primary)' });
+  }
+  return out;
+}
 
 /** Tareas completadas en cada una de las últimas 6 semanas. */
 function completedByWeek() {
@@ -41,6 +59,21 @@ export function renderDashboard(root, nav) {
     .sort((a, b) => a.due_date.localeCompare(b.due_date))
     .slice(0, 6);
 
+  /* ----- finanzas ----- */
+  const year = new Date().getFullYear();
+  const yStart = `${year}-01-01`;
+  const invoices = state.invoices;
+  const issued = invoices.filter(i => i.status !== 'borrador');           // facturas emitidas
+  const issuedYear = issued.filter(i => (i.issue_date || '') >= yStart);
+  const pendInv = invoices
+    .filter(i => i.status === 'pendiente' || i.status === 'vencida')
+    .sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999'));
+  const sumE = (arr, k) => arr.reduce((s, i) => s + (Number(i[k]) || 0), 0);
+  const facturadoYear = sumE(issuedYear, 'total');
+  const cobradoYear = sumE(issuedYear.filter(i => i.status === 'pagada'), 'total');
+  const pendienteAmount = sumE(pendInv, 'total');
+  const ivaYear = sumE(issuedYear, 'vat_amount');
+
   const stat = (num, lbl, icon, color, extra = '') => `
     <div class="card stat-card">
       <div class="stat-icon" style="background:var(--${color}-soft);color:var(--${color})">${icon}</div>
@@ -48,6 +81,7 @@ export function renderDashboard(root, nav) {
       <div class="lbl">${lbl}</div>
       ${extra}
     </div>`;
+  const muted = (txt) => `<div class="lbl" style="color:var(--muted);font-size:.72rem;margin-top:2px">${esc(txt)}</div>`;
 
   root.innerHTML = `
     <div class="page-head">
@@ -89,6 +123,43 @@ export function renderDashboard(root, nav) {
         })))}
       </div>
     </div>
+
+    ${invoices.length ? `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:6px 0 14px">
+      <h2 style="font-size:1.1rem;margin:0">Finanzas</h2>
+      <span class="more" data-nav="facturas">Ver facturas →</span>
+    </div>
+    <div class="stats-grid">
+      ${stat(fmtEUR(facturadoYear), 'Facturado ' + year, ICONS.euro, 'green', muted(issuedYear.length + ' emitida' + (issuedYear.length === 1 ? '' : 's')))}
+      ${stat(fmtEUR(cobradoYear), 'Cobrado ' + year, ICONS.check, 'blue')}
+      ${stat(fmtEUR(pendienteAmount), 'Pendiente de cobro', ICONS.clock, 'red', muted(pendInv.length + ' factura' + (pendInv.length === 1 ? '' : 's')))}
+      ${stat(fmtEUR(ivaYear), 'IVA a liquidar ' + year, ICONS.invoices, 'orange', muted('Modelo 303 · sin gastos'))}
+    </div>
+    <div class="charts-grid">
+      <div class="card">
+        <h2 class="card-title">Facturado por mes</h2>
+        ${barChart(billedByMonth(issued), { height: 130 })}
+      </div>
+      <div class="card">
+        <h2 class="card-title">Facturas por estado</h2>
+        ${donutChart(INVOICE_STATUSES.map(s => ({
+          label: s.label,
+          value: invoices.filter(i => i.status === s.id).length,
+          color: CHART_COLORS[s.color]
+        })), { centerLabel: 'facturas', emptyText: 'Sin facturas' })}
+      </div>
+      <div class="card">
+        <h2 class="card-title">Pendientes de pago <span class="more" data-nav="facturas">Ver todas →</span></h2>
+        <div id="dash-invoices"></div>
+      </div>
+    </div>` : `
+    <div class="card" style="margin-bottom:22px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+      <div>
+        <h2 class="card-title" style="margin:0">Finanzas</h2>
+        <p style="color:var(--muted);font-size:.86rem;margin-top:4px">Aún no hay facturas. Crea la primera para ver aquí el seguimiento del dinero.</p>
+      </div>
+      <button class="btn btn-primary" data-nav="facturas">${ICONS.invoices} Ir a Facturas</button>
+    </div>`}
 
     <div class="dash-grid">
       <div class="dash-col">
@@ -153,9 +224,27 @@ export function renderDashboard(root, nav) {
     ? recent.map(activityLine).join('')
     : `<p style="color:var(--muted);font-size:.85rem">Sin actividad todavía.</p>`;
 
+  // facturas pendientes de pago
+  const invWrap = root.querySelector('#dash-invoices');
+  if (invWrap) {
+    invWrap.innerHTML = pendInv.length
+      ? pendInv.slice(0, 6).map(invoiceLine).join('')
+      : `<p style="color:var(--muted);font-size:.87rem;padding:8px 0">No hay facturas pendientes de cobro 🎉</p>`;
+    invWrap.querySelectorAll('[data-nav-inv]').forEach(r =>
+      r.addEventListener('click', () => nav('facturas')));
+  }
+
   root.querySelector('#dash-new-task').addEventListener('click', () => taskModal());
   root.querySelectorAll('[data-nav]').forEach(b =>
     b.addEventListener('click', () => nav(b.dataset.nav)));
+}
+
+function invoiceLine(i) {
+  const overdue = i.status === 'pendiente' && i.due_date && i.due_date < todayISO();
+  return `<div class="task-line" data-nav-inv="1" style="cursor:pointer">
+    <span class="tl-title">${esc(i.number)} · ${esc(i.client_name)}</span>
+    <span class="tl-meta" style="${overdue ? 'color:var(--red);font-weight:600' : ''}">${fmtEUR(i.total)}${i.due_date ? ' · vence ' + fmtDate(i.due_date) : ''}${overdue ? ' ⚠' : ''}</span>
+  </div>`;
 }
 
 export function taskLine(t, overdueStyle = false) {

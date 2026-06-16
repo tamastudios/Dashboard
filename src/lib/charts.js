@@ -32,7 +32,7 @@ export function barChart(data, { height = 140, max = null } = {}) {
  * Donut chart. data: [{ label, value, color }]
  * Devuelve el SVG + una leyenda.
  */
-export function donutChart(data, { size = 150, thickness = 22 } = {}) {
+export function donutChart(data, { size = 150, thickness = 22, centerLabel = 'tareas', emptyText = 'Sin tareas todavía' } = {}) {
   const total = data.reduce((s, d) => s + d.value, 0);
   const r = (size - thickness) / 2;
   const cx = size / 2, cy = size / 2;
@@ -57,13 +57,13 @@ export function donutChart(data, { size = 150, thickness = 22 } = {}) {
 
   const legend = data.filter(d => d.value > 0).map(d =>
     `<div class="legend-item"><span class="legend-dot" style="background:${d.color}"></span>${esc(d.label)} <b>${d.value}</b></div>`
-  ).join('') || '<div class="chart-empty">Sin tareas todavía</div>';
+  ).join('') || `<div class="chart-empty">${esc(emptyText)}</div>`;
 
   return `
     <div class="chart-donut-wrap">
       <div class="chart-donut">
         <svg viewBox="0 0 ${size} ${size}" style="width:${size}px;height:${size}px;max-width:100%">${arcs}</svg>
-        <div class="donut-center"><div class="donut-total">${total}</div><div class="donut-lbl">tareas</div></div>
+        <div class="donut-center"><div class="donut-total">${total}</div><div class="donut-lbl">${esc(centerLabel)}</div></div>
       </div>
       <div class="chart-legend">${legend}</div>
     </div>`;
