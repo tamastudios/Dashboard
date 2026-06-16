@@ -10,6 +10,7 @@ import { renderLogin, renderSetup, renderResetPassword, renderMfaChallenge, rend
 import { getAAL, listVerifiedFactors, isDeviceTrusted, trustDevice } from './lib/mfa.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderCompanies } from './views/companies.js';
+import { renderInvoices } from './views/invoices.js';
 import { renderTasks } from './views/tasks.js';
 import { renderKanban } from './views/kanban.js';
 import { renderCalendar } from './views/calendar.js';
@@ -25,6 +26,7 @@ initTheme();
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: ICONS.dashboard, render: renderDashboard },
   { id: 'empresas',  label: 'Empresas',  icon: ICONS.companies, render: renderCompanies },
+  { id: 'facturas',  label: 'Facturas',  icon: ICONS.invoices,  render: renderInvoices },
   { id: 'tareas',    label: 'Tareas',    icon: ICONS.tasks,     render: renderTasks },
   { id: 'kanban',    label: 'Kanban',    icon: ICONS.kanban,    render: renderKanban },
   { id: 'calendario',label: 'Calendario',icon: ICONS.calendar,  render: renderCalendar },

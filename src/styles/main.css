@@ -828,3 +828,33 @@ tr:hover .row-actions { opacity: 1; }
   .prosp-tabs { gap: 0; }
   .prosp-tab { padding: 8px 10px; font-size: .82rem; }
 }
+
+/* ============================================================
+   FACTURAS
+   ============================================================ */
+.mini-select {
+  font: inherit; font-size: .82rem; padding: 5px 26px 5px 9px;
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--surface); color: var(--ink); cursor: pointer;
+}
+.inv-item-row {
+  display: grid; grid-template-columns: 1fr 80px 110px 92px 36px;
+  gap: 8px; align-items: center; margin-bottom: 8px;
+}
+.inv-item-row input {
+  font: inherit; padding: 8px 10px; border: 1px solid var(--line);
+  border-radius: var(--r); background: var(--surface); color: var(--ink); width: 100%;
+}
+.inv-item-row .it-sub { font-size: .85rem; color: var(--muted); text-align: right; white-space: nowrap; }
+.inv-item-row .it-del { color: var(--red); }
+.inv-item-row .it-del:disabled { opacity: .35; cursor: default; }
+.inv-totals { margin-top: 16px; margin-left: auto; max-width: 300px; }
+.inv-tot-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: .9rem; color: var(--muted); }
+.inv-tot-row.total {
+  border-top: 1px solid var(--line); margin-top: 6px; padding-top: 10px;
+  font-size: 1.12rem; font-weight: 700; color: var(--ink);
+}
+@media (max-width: 560px) {
+  .inv-item-row { grid-template-columns: 1fr 64px 84px 32px; }
+  .inv-item-row .it-sub { display: none; }
+}
