@@ -887,3 +887,7 @@ tr:hover .row-actions { opacity: 1; }
 .pill svg { width: 12px; height: 12px; }
 .charts-grid.two { grid-template-columns: 1fr 1fr; }
 @media (max-width: 900px) { .charts-grid.two { grid-template-columns: 1fr; } }
+.svc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.svc-check { display: flex; align-items: center; gap: 8px; font-size: .9rem; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r); cursor: pointer; }
+.svc-check input { accent-color: var(--primary); }
+@media (max-width: 560px) { .svc-grid { grid-template-columns: 1fr; } }

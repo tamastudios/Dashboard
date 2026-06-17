@@ -1,42 +1,29 @@
-import { esc, fmtEUR, statusBadge, toast, ICONS } from '../lib/ui.js';
+import { esc, chip, companyStatusMeta, ICONS } from '../lib/ui.js';
 import { renderTablePage } from '../lib/components.js';
-import { agents } from '../lib/mock.js';
+import { state, profileById } from '../lib/store.js';
+import { companyModal } from './forms.js';
 
-const ST = ['desarrollo', 'revision', 'activo', 'pausado'];
+const SERVICE = 'Agente IA';
 
 export function renderAgents(root) {
-  const active = agents.filter(a => a.status === 'activo');
-  const convs = agents.reduce((s, a) => s + (a.conversations || 0), 0);
-  const cost = agents.reduce((s, a) => s + (a.cost_month || 0), 0);
-  const errs = agents.reduce((s, a) => s + (a.errors || 0), 0);
-
+  const rows = state.companies.filter(c => (c.services || []).includes(SERVICE));
   renderTablePage(root, {
     title: 'Agentes IA',
-    subtitle: `${agents.length} agentes · ${active.length} activos`,
-    primaryAction: { label: 'Nuevo agente', onClick: () => toast('Disponible al conectar la base de datos') },
+    subtitle: `${rows.length} clientes con agente IA`,
+    primaryAction: { label: 'Nueva empresa', onClick: () => companyModal() },
     stats: [
-      { num: active.length, label: 'Agentes activos', icon: ICONS.agents, color: 'green' },
-      { num: convs.toLocaleString('es-ES'), label: 'Conversaciones', icon: ICONS.activity, color: 'blue' },
-      { num: fmtEUR(cost), label: 'Coste IA / mes', icon: ICONS.euro, color: 'orange' },
-      { num: errs, label: 'Errores (30d)', icon: ICONS.alert, color: 'red' }
+      { num: rows.length, label: 'Agentes / clientes', icon: ICONS.agents, color: 'blue' },
+      { num: rows.filter(c => c.status === 'activo').length, label: 'Activos', icon: ICONS.check, color: 'green' }
     ],
-    search: { placeholder: 'Buscar agente…', keys: ['name', 'client', 'type', 'channel', 'model'] },
-    selects: [
-      { id: 'status', label: 'Todos los estados', options: ST.map(s => ({ value: s, label: s })), match: (r, v) => r.status === v },
-      { id: 'channel', label: 'Todos los canales', options: ['Web', 'WhatsApp', 'Email', 'Interno'].map(c => ({ value: c, label: c })), match: (r, v) => r.channel === v }
-    ],
+    search: { placeholder: 'Buscar cliente…', keys: ['name', 'contact_person'] },
     columns: [
-      { label: 'Agente', render: a => `<div class="cell-strong">${esc(a.name)}</div><div class="cell-muted">${esc(a.client)}</div>` },
-      { label: 'Tipo', render: a => esc(a.type) },
-      { label: 'Canal', render: a => `<span class="pill">${esc(a.channel)}</span>` },
-      { label: 'Modelo', render: a => `<span class="cell-muted">${esc(a.model)}</span>` },
-      { label: 'Integraciones', render: a => `<span class="cell-muted">${esc(a.integrations)}</span>` },
-      { label: 'Convers.', align: 'right', nowrap: true, render: a => `<span class="cell-mono">${(a.conversations || 0).toLocaleString('es-ES')}</span>` },
-      { label: 'Errores', align: 'right', render: a => a.errors ? `<span class="cell-mono" style="color:var(--red)">${a.errors}</span>` : `<span class="cell-muted">0</span>` },
-      { label: 'Coste/mes', align: 'right', nowrap: true, render: a => `<span class="cell-mono">${fmtEUR(a.cost_month)}</span>` },
-      { label: 'Estado', render: a => statusBadge(a.status) }
+      { label: 'Cliente', render: c => `<div class="cell-strong">${esc(c.name)}</div>${c.contact_person ? `<div class="cell-muted">${esc(c.contact_person)}</div>` : ''}` },
+      { label: 'Email', render: c => c.email ? `<span class="cell-muted">${esc(c.email)}</span>` : '<span class="cell-muted">—</span>' },
+      { label: 'Estado', render: c => chip(companyStatusMeta(c.status)) },
+      { label: 'Responsable', render: c => { const o = profileById(c.owner_id); return o ? esc((o.name || o.email).split(' ')[0]) : '<span class="cell-muted">—</span>'; } }
     ],
-    rows: agents,
-    empty: { icon: '🤖', title: 'Sin agentes', text: 'Tus agentes de IA aparecerán aquí.' }
+    rows,
+    onRow: (c) => companyModal(c),
+    empty: { icon: '🤖', title: 'Aún no hay agentes IA', text: 'Marca el servicio “Agente IA” en una empresa y aparecerá aquí.' }
   });
 }

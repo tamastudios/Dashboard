@@ -11,6 +11,7 @@ import {
   state, createCompany, updateCompany, createTask, updateTask, deleteTask,
   companyById, profileById, loadComments, addComment, onChange, isStaff
 } from '../lib/store.js';
+import { SERVICES } from '../lib/mock.js';
 
 const opt = (list, sel) => list.map(o =>
   `<option value="${o.id}"${o.id === sel ? ' selected' : ''}>${esc(o.label)}</option>`).join('');
@@ -45,6 +46,13 @@ export function companyModal(company = null) {
       <div class="fld"><label>Prioridad</label><select name="priority">${opt(PRIORITIES, c.priority || 'media')}</select></div>
     </div>
     <div class="fld"><label>Responsable principal</label><select name="owner_id">${peopleOpt(c.owner_id)}</select></div>
+    <div class="fld">
+      <label>Servicios contratados</label>
+      <div class="desc">Lo que vais a hacer para este cliente. Aparece en Producción (Webs, Agentes IA, Proyectos).</div>
+      <div class="svc-grid">
+        ${SERVICES.map(s => `<label class="svc-check"><input type="checkbox" name="svc" value="${esc(s)}"${(c.services || []).includes(s) ? ' checked' : ''}> ${esc(s)}</label>`).join('')}
+      </div>
+    </div>
     <div class="fld"><label>Notas internas</label><textarea name="notes">${esc(c.notes || '')}</textarea></div>
   `;
 
@@ -74,6 +82,7 @@ export function companyModal(company = null) {
       status: fd.get('status'),
       priority: fd.get('priority'),
       owner_id: fd.get('owner_id') || null,
+      services: [...body.querySelectorAll('input[name=svc]:checked')].map(i => i.value),
       notes: fd.get('notes').trim() || null
     };
     save.disabled = true;

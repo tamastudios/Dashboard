@@ -2,11 +2,9 @@ import {
   esc, chip, fmtDate, relTime, avatarHTML, isOverdue, fmtEUR, todayISO,
   statusMeta, priorityMeta, statusBadge, TASK_STATUSES, INVOICE_STATUSES, ICONS
 } from '../lib/ui.js';
-import { progressBar } from '../lib/components.js';
 import { state, companyById, profileById } from '../lib/store.js';
 import { taskModal, taskDetailModal } from './forms.js';
 import { barChart, donutChart, hbarChart } from '../lib/charts.js';
-import { projects, agents, webs } from '../lib/mock.js';
 
 const CHART_COLORS = {
   gray: '#94a3b8', blue: '#3b82f6', purple: '#a855f7', red: '#ef4444', green: '#22c55e', orange: '#f59e0b'
@@ -78,16 +76,13 @@ export function renderDashboard(root, nav) {
   const monthStart = `${year}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
   const ingresosMes = sumE(issued.filter(i => i.status === 'pagada' && (i.paid_date || i.issue_date || '') >= monthStart), 'total');
 
-  /* ----- negocio (mock hasta conectar tablas) ----- */
-  const projActive = projects.filter(p => p.status !== 'entregado');
+  /* ----- negocio (derivado de empresas y datos reales) ----- */
+  const withServices = state.companies.filter(c => (c.services || []).length > 0);
+  const projActive = withServices.filter(c => c.status !== 'finalizado');
   const leadsNew = state.leads.filter(l => l.status === 'nuevo');
-  const agentsActive = agents.filter(a => a.status === 'activo');
-  const websDev = webs.filter(w => w.status === 'desarrollo' || w.status === 'diseno');
+  const agentsActive = state.companies.filter(c => (c.services || []).includes('Agente IA'));
+  const websDev = state.companies.filter(c => (c.services || []).includes('Desarrollo web'));
   const ticketsOpen = state.supportRequests.filter(t => ['nuevo', 'abierto', 'progreso'].includes(t.status));
-  const nextDeliveries = projects
-    .filter(p => p.status !== 'entregado' && p.due >= todayISO())
-    .sort((a, b) => a.due.localeCompare(b.due))
-    .slice(0, 5);
 
   const stat = (num, lbl, icon, color, extra = '') => `
     <div class="card stat-card">
@@ -114,19 +109,13 @@ export function renderDashboard(root, nav) {
       ${stat(leadsNew.length, 'Leads nuevos', ICONS.leads, 'purple')}
       ${stat(fmtEUR(ingresosMes), 'Ingresos del mes', ICONS.euro, 'green')}
       ${stat(pendInv.length, 'Facturas pendientes', ICONS.invoices, 'orange', muted(fmtEUR(pendienteAmount)))}
-      ${stat(agentsActive.length, 'Agentes IA activos', ICONS.agents, 'blue')}
-      ${stat(websDev.length, 'Webs en desarrollo', ICONS.globe, 'purple')}
+      ${stat(agentsActive.length, 'Agentes IA', ICONS.agents, 'blue')}
+      ${stat(websDev.length, 'Webs', ICONS.globe, 'purple')}
       ${stat(ticketsOpen.length, 'Tickets abiertos', ICONS.tickets, 'red')}
     </div>
-    <div class="charts-grid two" style="margin-bottom:22px">
-      <div class="card">
-        <h2 class="card-title">Proyectos activos <span class="more" data-nav="proyectos">Ver todos →</span></h2>
-        <div id="dash-projects"></div>
-      </div>
-      <div class="card">
-        <h2 class="card-title">Próximas entregas <span class="more" data-nav="entregas">Ver QA →</span></h2>
-        <div id="dash-deliveries"></div>
-      </div>
+    <div class="card" style="margin-bottom:22px">
+      <h2 class="card-title">Producción por cliente <span class="more" data-nav="proyectos">Ver proyectos →</span></h2>
+      <div id="dash-production"></div>
     </div>
 
     <div class="charts-grid">
@@ -251,22 +240,13 @@ export function renderDashboard(root, nav) {
     ? recent.map(activityLine).join('')
     : `<p style="color:var(--muted);font-size:.85rem">Sin actividad todavía.</p>`;
 
-  // proyectos activos
-  const projWrap = root.querySelector('#dash-projects');
-  if (projWrap) {
-    projWrap.innerHTML = projActive.length
-      ? projActive.slice(0, 5).map(projectLine).join('')
-      : `<p style="color:var(--muted);font-size:.87rem;padding:8px 0">Sin proyectos activos.</p>`;
-    projWrap.querySelectorAll('[data-nav-proj]').forEach(r => r.addEventListener('click', () => nav('proyectos')));
-  }
-
-  // próximas entregas
-  const delWrap = root.querySelector('#dash-deliveries');
-  if (delWrap) {
-    delWrap.innerHTML = nextDeliveries.length
-      ? nextDeliveries.map(deliveryLine).join('')
-      : `<p style="color:var(--muted);font-size:.87rem;padding:8px 0">No hay entregas próximas.</p>`;
-    delWrap.querySelectorAll('[data-nav-proj]').forEach(r => r.addEventListener('click', () => nav('proyectos')));
+  // producción por cliente (empresas con servicios)
+  const prodWrap = root.querySelector('#dash-production');
+  if (prodWrap) {
+    prodWrap.innerHTML = projActive.length
+      ? projActive.slice(0, 6).map(productionLine).join('')
+      : `<p style="color:var(--muted);font-size:.87rem;padding:8px 0">Aún no hay clientes con servicios. Crea una empresa y marca qué se le hace.</p>`;
+    prodWrap.querySelectorAll('[data-nav-proj]').forEach(r => r.addEventListener('click', () => nav('proyectos')));
   }
 
   // facturas pendientes de pago
@@ -292,18 +272,11 @@ function invoiceLine(i) {
   </div>`;
 }
 
-function projectLine(p) {
+function productionLine(c) {
+  const svc = (c.services || []).map(s => `<span class="pill">${esc(s)}</span>`).join(' ');
   return `<div class="task-line" data-nav-proj="1" style="cursor:pointer;align-items:center">
-    <span class="tl-title">${esc(p.name)} <span style="color:var(--muted);font-weight:400">· ${esc(p.client)}</span></span>
-    <span style="display:flex;align-items:center;gap:8px;flex:none">${progressBar(p.progress)}<span class="tl-meta">${p.progress}%</span></span>
-  </div>`;
-}
-
-function deliveryLine(p) {
-  const soon = p.due <= todayISO();
-  return `<div class="task-line" data-nav-proj="1" style="cursor:pointer">
-    <span class="tl-title">${esc(p.name)} <span style="color:var(--muted);font-weight:400">· ${esc(p.client)}</span></span>
-    <span class="tl-meta" style="${soon ? 'color:var(--red);font-weight:600' : ''}">${fmtDate(p.due)}</span>
+    <span class="tl-title">${esc(c.name)}</span>
+    <span style="display:flex;align-items:center;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end">${svc || '<span class="tl-meta">sin servicios</span>'}</span>
   </div>`;
 }
 
