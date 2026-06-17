@@ -26,11 +26,7 @@ import { renderAgents } from './views/agents.js';
 import { renderQA } from './views/qa.js';
 import { renderSupport } from './views/support.js';
 import { renderTickets } from './views/tickets.js';
-import { renderMaintenance } from './views/maintenance.js';
-import { renderDocuments } from './views/documents.js';
 import { renderReports } from './views/reports.js';
-import { renderTools } from './views/tools.js';
-import { renderAccess } from './views/access.js';
 import { taskDetailModal } from './views/forms.js';
 import { companyModal } from './views/forms.js';
 
@@ -54,20 +50,16 @@ const NAV_GROUPS = [
     { id: 'proyectos',  label: 'Proyectos',    icon: ICONS.projects,  render: renderProjects },
     { id: 'webs',       label: 'Webs',         icon: ICONS.globe,     render: renderWebs },
     { id: 'agentes',    label: 'Agentes IA',   icon: ICONS.agents,    render: renderAgents },
-    { id: 'entregas',   label: 'Entregas / QA',icon: ICONS.qa,        render: renderQA },
-    { id: 'documentos', label: 'Documentos',   icon: ICONS.documents, render: renderDocuments }
+    { id: 'entregas',   label: 'Entregas / QA',icon: ICONS.qa,        render: renderQA }
   ]},
   { title: 'Postventa', items: [
-    { id: 'soporte',       label: 'Soporte',       icon: ICONS.support,     render: renderSupport },
-    { id: 'tickets',       label: 'Tickets',       icon: ICONS.tickets,     render: renderTickets },
-    { id: 'mantenimiento', label: 'Mantenimiento', icon: ICONS.maintenance, render: renderMaintenance },
-    { id: 'informes',      label: 'Informes',      icon: ICONS.reports,     render: renderReports }
+    { id: 'soporte',  label: 'Soporte',  icon: ICONS.support, render: renderSupport },
+    { id: 'tickets',  label: 'Tickets',  icon: ICONS.tickets, render: renderTickets },
+    { id: 'informes', label: 'Informes', icon: ICONS.reports, render: renderReports }
   ]},
   { title: 'Empresa', items: [
-    { id: 'equipo',       label: 'Equipo',       icon: ICONS.team,     render: renderTeam },
-    { id: 'actividad',    label: 'Actividad',    icon: ICONS.activity, render: renderActivity },
-    { id: 'herramientas', label: 'Herramientas', icon: ICONS.tools,    render: renderTools },
-    { id: 'accesos',      label: 'Accesos',      icon: ICONS.access,   render: renderAccess }
+    { id: 'equipo',    label: 'Equipo',    icon: ICONS.team,     render: renderTeam },
+    { id: 'actividad', label: 'Actividad', icon: ICONS.activity, render: renderActivity }
   ]},
   { title: 'Sistema', items: [
     { id: 'ajustes', label: 'Ajustes', icon: ICONS.settings, render: renderSettings }

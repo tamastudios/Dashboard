@@ -5,6 +5,7 @@ import {
 import {
   state, isStaff, profileById, companyById, updateSupportRequest, deleteSupportRequest
 } from '../lib/store.js';
+import { incidentReportPDF } from './reports.js';
 
 const ST = ['nuevo', 'abierto', 'progreso', 'resuelto', 'cerrado'];
 const PR = ['baja', 'media', 'alta', 'urgente'];
@@ -124,7 +125,8 @@ function detailModal(t) {
     <div class="fld"><label>Solicitante</label><div>${esc(t.name)} · <a href="mailto:${esc(t.email)}" style="color:var(--primary)">${esc(t.email)}</a>${t.phone ? ` · ${esc(t.phone)}` : ''}</div></div>
     ${cliente ? `<div class="fld"><label>Empresa</label><div>${esc(cliente)}</div></div>` : ''}
     ${t.subject ? `<div class="fld"><label>Asunto</label><div>${esc(t.subject)}</div></div>` : ''}
-    <div class="fld"><label>Mensaje</label><div style="white-space:pre-wrap;background:var(--surface-2);border-radius:10px;padding:12px;color:var(--ink)">${esc(t.message)}</div></div>`;
+    <div class="fld"><label>Mensaje</label><div style="white-space:pre-wrap;background:var(--surface-2);border-radius:10px;padding:12px;color:var(--ink)">${esc(t.message)}</div></div>
+    ${isStaff() ? `<div class="fld"><label>Resolución · qué se ha hecho (sale en el informe PDF)</label><textarea id="tk-res" placeholder="Describe el trabajo realizado para resolver la incidencia…">${esc(t.resolution || '')}</textarea></div>` : (t.resolution ? `<div class="fld"><label>Resolución</label><div style="white-space:pre-wrap">${esc(t.resolution)}</div></div>` : '')}`;
 
   const foot = document.createElement('div');
   foot.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap';
@@ -132,11 +134,24 @@ function detailModal(t) {
   mail.className = 'btn btn-ghost'; mail.href = `mailto:${encodeURIComponent(t.email)}?subject=${encodeURIComponent('Re: ' + (t.subject || 'Tu solicitud de soporte'))}`;
   mail.textContent = 'Responder por email';
   foot.appendChild(mail);
-  if (isStaff() && t.status !== 'resuelto') {
-    const done = document.createElement('button');
-    done.className = 'btn btn-primary'; done.textContent = 'Marcar resuelta';
-    done.addEventListener('click', async () => { try { await updateSupportRequest(t.id, { status: 'resuelto' }); toast('Marcada como resuelta'); m.close(); } catch { toast('Error', 'err'); } });
-    foot.appendChild(done);
+
+  const pdf = document.createElement('button');
+  pdf.className = 'btn btn-ghost'; pdf.textContent = 'Descargar informe';
+  pdf.addEventListener('click', () => incidentReportPDF({ ...t, resolution: getRes() ?? t.resolution }));
+  foot.appendChild(pdf);
+
+  if (isStaff()) {
+    const saveRes = document.createElement('button');
+    saveRes.className = 'btn btn-ghost'; saveRes.textContent = 'Guardar resolución';
+    saveRes.addEventListener('click', async () => { try { await updateSupportRequest(t.id, { resolution: getRes() || null }); toast('Resolución guardada'); } catch { toast('Error', 'err'); } });
+    foot.appendChild(saveRes);
+    if (t.status !== 'resuelto') {
+      const done = document.createElement('button');
+      done.className = 'btn btn-primary'; done.textContent = 'Marcar resuelta';
+      done.addEventListener('click', async () => { try { await updateSupportRequest(t.id, { status: 'resuelto', resolution: getRes() || null }); toast('Marcada como resuelta'); m.close(); } catch { toast('Error', 'err'); } });
+      foot.appendChild(done);
+    }
   }
   const m = openModal({ title: `Solicitud de ${t.name}`, body, footer: foot });
+  const getRes = () => m.body.querySelector('#tk-res')?.value.trim();
 }

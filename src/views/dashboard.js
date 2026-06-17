@@ -6,7 +6,7 @@ import { progressBar } from '../lib/components.js';
 import { state, companyById, profileById } from '../lib/store.js';
 import { taskModal, taskDetailModal } from './forms.js';
 import { barChart, donutChart, hbarChart } from '../lib/charts.js';
-import { projects, leads, agents, webs } from '../lib/mock.js';
+import { projects, agents, webs } from '../lib/mock.js';
 
 const CHART_COLORS = {
   gray: '#94a3b8', blue: '#3b82f6', purple: '#a855f7', red: '#ef4444', green: '#22c55e', orange: '#f59e0b'
@@ -80,7 +80,7 @@ export function renderDashboard(root, nav) {
 
   /* ----- negocio (mock hasta conectar tablas) ----- */
   const projActive = projects.filter(p => p.status !== 'entregado');
-  const leadsNew = leads.filter(l => l.status === 'nuevo');
+  const leadsNew = state.leads.filter(l => l.status === 'nuevo');
   const agentsActive = agents.filter(a => a.status === 'activo');
   const websDev = webs.filter(w => w.status === 'desarrollo' || w.status === 'diseno');
   const ticketsOpen = state.supportRequests.filter(t => ['nuevo', 'abierto', 'progreso'].includes(t.status));

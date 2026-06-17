@@ -30,9 +30,13 @@ create table public.support_requests (
   status       text not null default 'nuevo'
                check (status in ('nuevo','abierto','progreso','resuelto','cerrado')),
   assigned_to  uuid references public.profiles(id) on delete set null,
+  resolution   text,                                -- qué se hizo (para el informe PDF)
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
+
+-- Si la tabla ya existía sin la columna, ejecuta solo esto:
+--   alter table public.support_requests add column if not exists resolution text;
 
 create index support_status_idx  on public.support_requests(status);
 create index support_created_idx on public.support_requests(created_at desc);

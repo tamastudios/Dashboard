@@ -11,6 +11,8 @@ export const state = {
   profiles: [],
   companies: [],
   tasks: [],
+  leads: [],
+  quotes: [],
   invoices: [],
   supportRequests: [],
   activity: [],
@@ -43,6 +45,8 @@ export const companyById = id => state.companies.find(c => c.id === id) || null;
 export const taskById = id => state.tasks.find(t => t.id === id) || null;
 export const invoiceById = id => state.invoices.find(i => i.id === id) || null;
 export const supportById = id => state.supportRequests.find(s => s.id === id) || null;
+export const leadById = id => state.leads.find(l => l.id === id) || null;
+export const quoteById = id => state.quotes.find(q => q.id === id) || null;
 
 function upsertLocal(list, row) {
   const i = list.findIndex(x => x.id === row.id);
@@ -58,10 +62,12 @@ function removeLocal(list, id) {
    ============================================================ */
 export async function loadAll(user) {
   state.user = user;
-  const [profiles, companies, tasks, invoices, support, activity, notifications] = await Promise.all([
+  const [profiles, companies, tasks, leads, quotes, invoices, support, activity, notifications] = await Promise.all([
     supabase.from('profiles').select('id,name,email,avatar_url,role,created_at').order('created_at'),
     supabase.from('companies').select('*').order('created_at', { ascending: false }),
     supabase.from('tasks').select('*').order('created_at', { ascending: false }),
+    supabase.from('leads').select('*').order('created_at', { ascending: false }),
+    supabase.from('quotes').select('*').order('issue_date', { ascending: false }),
     supabase.from('invoices').select('*').order('issue_date', { ascending: false }),
     supabase.from('support_requests').select('*').order('created_at', { ascending: false }),
     supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(80),
@@ -73,6 +79,8 @@ export async function loadAll(user) {
   state.profiles = profiles.data;
   state.companies = companies.data;
   state.tasks = tasks.data;
+  state.leads = leads.error ? [] : leads.data;                   // tolera si aún no existe la tabla
+  state.quotes = quotes.error ? [] : quotes.data;                // tolera si aún no existe la tabla
   state.invoices = invoices.error ? [] : invoices.data;          // tolera si aún no existe la tabla
   state.supportRequests = support.error ? [] : support.data;     // tolera si aún no existe la tabla
   state.activity = activity.data;
@@ -93,6 +101,8 @@ function subscribeRealtime() {
     .channel('tama-db')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, p => applyChange(state.companies, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, p => applyChange(state.tasks, p))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, p => applyChange(state.leads, p))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes' }, p => applyChange(state.quotes, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, p => applyChange(state.invoices, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'support_requests' }, p => applyChange(state.supportRequests, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, p => {
@@ -137,10 +147,12 @@ export async function reconnect() {
 }
 
 async function refreshData() {
-  const [profiles, companies, tasks, invoices, support, activity] = await Promise.all([
+  const [profiles, companies, tasks, leads, quotes, invoices, support, activity] = await Promise.all([
     supabase.from('profiles').select('id,name,email,avatar_url,role,created_at').order('created_at'),
     supabase.from('companies').select('*').order('created_at', { ascending: false }),
     supabase.from('tasks').select('*').order('created_at', { ascending: false }),
+    supabase.from('leads').select('*').order('created_at', { ascending: false }),
+    supabase.from('quotes').select('*').order('issue_date', { ascending: false }),
     supabase.from('invoices').select('*').order('issue_date', { ascending: false }),
     supabase.from('support_requests').select('*').order('created_at', { ascending: false }),
     supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(80)
@@ -148,6 +160,8 @@ async function refreshData() {
   if (!profiles.error) state.profiles = profiles.data;
   if (!companies.error) state.companies = companies.data;
   if (!tasks.error) state.tasks = tasks.data;
+  if (!leads.error) state.leads = leads.data;
+  if (!quotes.error) state.quotes = quotes.data;
   if (!invoices.error) state.invoices = invoices.data;
   if (!support.error) state.supportRequests = support.data;
   if (!activity.error) state.activity = activity.data;
@@ -164,7 +178,7 @@ function applyChange(list, payload) {
 export function teardown() {
   if (channel) { supabase.removeChannel(channel); channel = null; }
   state.loaded = false;
-  state.profiles = []; state.companies = []; state.tasks = []; state.invoices = []; state.supportRequests = []; state.activity = []; state.notifications = []; state.prospects = [];
+  state.profiles = []; state.companies = []; state.tasks = []; state.leads = []; state.quotes = []; state.invoices = []; state.supportRequests = []; state.activity = []; state.notifications = []; state.prospects = [];
   state.prospectsLoaded = false;
   state.user = null; state.me = null;
 }
@@ -328,6 +342,71 @@ export async function deleteInvoice(id) {
   if (error) throw error;
   removeLocal(state.invoices, id); emit();
   logActivity('eliminó la factura', 'invoice', number);
+}
+
+/* ============================================================
+   LEADS (pipeline comercial)
+   ============================================================ */
+export async function createLead(fields) {
+  const { data, error } = await supabase.from('leads')
+    .insert({ ...fields, created_by: state.user.id }).select().single();
+  if (error) throw error;
+  upsertLocal(state.leads, data); emit();
+  logActivity('creó el lead', 'lead', data.name);
+  return data;
+}
+export async function updateLead(id, fields) {
+  const { data, error } = await supabase.from('leads')
+    .update({ ...fields, updated_at: new Date().toISOString() })
+    .eq('id', id).select().single();
+  if (error) throw error;
+  upsertLocal(state.leads, data); emit();
+  logActivity('editó el lead', 'lead', data.name);
+  return data;
+}
+export async function deleteLead(id) {
+  const name = leadById(id)?.name || '';
+  const { error } = await supabase.from('leads').delete().eq('id', id);
+  if (error) throw error;
+  removeLocal(state.leads, id); emit();
+  logActivity('eliminó el lead', 'lead', name);
+}
+
+/* ============================================================
+   PRESUPUESTOS
+   ============================================================ */
+export function nextQuoteNumber() {
+  const year = new Date().getFullYear();
+  let max = 0;
+  for (const q of state.quotes) {
+    const m = String(q.number || '').match(new RegExp(`^PRE-${year}-(\\d+)$`));
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return `PRE-${year}-${String(max + 1).padStart(3, '0')}`;
+}
+export async function createQuote(fields) {
+  const { data, error } = await supabase.from('quotes')
+    .insert({ ...fields, created_by: state.user.id }).select().single();
+  if (error) throw error;
+  upsertLocal(state.quotes, data); emit();
+  logActivity('creó el presupuesto', 'quote', data.number, data.client_name ? `a ${data.client_name}` : '');
+  return data;
+}
+export async function updateQuote(id, fields) {
+  const { data, error } = await supabase.from('quotes')
+    .update({ ...fields, updated_at: new Date().toISOString() })
+    .eq('id', id).select().single();
+  if (error) throw error;
+  upsertLocal(state.quotes, data); emit();
+  logActivity('editó el presupuesto', 'quote', data.number);
+  return data;
+}
+export async function deleteQuote(id) {
+  const number = quoteById(id)?.number || '';
+  const { error } = await supabase.from('quotes').delete().eq('id', id);
+  if (error) throw error;
+  removeLocal(state.quotes, id); emit();
+  logActivity('eliminó el presupuesto', 'quote', number);
 }
 
 /* ============================================================
