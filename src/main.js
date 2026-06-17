@@ -26,7 +26,6 @@ import { renderAgents } from './views/agents.js';
 import { renderQA } from './views/qa.js';
 import { renderSupport } from './views/support.js';
 import { renderTickets } from './views/tickets.js';
-import { renderReservations } from './views/reservations.js';
 import { renderReports } from './views/reports.js';
 import { taskDetailModal } from './views/forms.js';
 import { companyModal } from './views/forms.js';
@@ -54,10 +53,9 @@ const NAV_GROUPS = [
     { id: 'entregas',   label: 'Entregas / QA',icon: ICONS.qa,        render: renderQA }
   ]},
   { title: 'Postventa', items: [
-    { id: 'soporte',   label: 'Soporte',   icon: ICONS.support,      render: renderSupport },
-    { id: 'tickets',   label: 'Tickets',   icon: ICONS.tickets,      render: renderTickets },
-    { id: 'reservas',  label: 'Reservas',  icon: ICONS.reservations, render: renderReservations },
-    { id: 'informes',  label: 'Informes',  icon: ICONS.reports,      render: renderReports }
+    { id: 'soporte',   label: 'Soporte',   icon: ICONS.support, render: renderSupport },
+    { id: 'tickets',   label: 'Tickets',   icon: ICONS.tickets, render: renderTickets },
+    { id: 'informes',  label: 'Informes',  icon: ICONS.reports, render: renderReports }
   ]},
   { title: 'Empresa', items: [
     { id: 'equipo',    label: 'Equipo',    icon: ICONS.team,     render: renderTeam },
