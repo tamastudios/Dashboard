@@ -7,7 +7,8 @@ import {
 } from '../lib/ui.js';
 import { getIssuer, setIssuer } from '../lib/issuer.js';
 import {
-  state, isStaff, companyById, createQuote, updateQuote, deleteQuote, nextQuoteNumber
+  state, isStaff, companyById, createQuote, updateQuote, deleteQuote, nextQuoteNumber,
+  createInvoice, nextInvoiceNumber
 } from '../lib/store.js';
 
 const ST = ['borrador', 'enviado', 'aceptado', 'rechazado'];
@@ -87,7 +88,7 @@ function paint(root) {
           : statusBadge(q.status)}</td>
         <td><div class="row-actions">
           <button class="icon-btn pdf" title="Descargar PDF">${ICONS.download}</button>
-          ${isStaff() ? `<button class="icon-btn edit" title="Editar">${ICONS.edit}</button><button class="icon-btn del" title="Eliminar" style="color:var(--red)">${ICONS.trash}</button>` : ''}
+          ${isStaff() ? `<button class="icon-btn tofact" title="Convertir en factura">${ICONS.invoices}</button><button class="icon-btn edit" title="Editar">${ICONS.edit}</button><button class="icon-btn del" title="Eliminar" style="color:var(--red)">${ICONS.trash}</button>` : ''}
         </div></td>
       </tr>`;
     }).join('')}</tbody></table></div>`;
@@ -100,9 +101,33 @@ function paint(root) {
     tr.querySelector('.q-st').addEventListener('click', e => e.stopPropagation());
     tr.querySelector('.q-st').addEventListener('change', async e => { try { await updateQuote(q.id, { status: e.target.value }); toast('Estado actualizado'); } catch { toast('No se pudo actualizar', 'err'); } });
     tr.querySelector('.edit').addEventListener('click', e => { e.stopPropagation(); quoteModal(q); });
+    tr.querySelector('.tofact').addEventListener('click', async e => { e.stopPropagation(); convertToInvoice(q); });
     tr.querySelector('.del').addEventListener('click', async e => { e.stopPropagation(); if (await confirmDialog(`Se eliminará el presupuesto "${q.number}".`)) { try { await deleteQuote(q.id); toast('Presupuesto eliminado'); } catch { toast('No se pudo eliminar', 'err'); } } });
     tr.addEventListener('click', () => quoteModal(q));
   });
+}
+
+/* ---------- convertir presupuesto en factura ---------- */
+async function convertToInvoice(q) {
+  if (!(await confirmDialog(`Se creará una factura a partir del presupuesto "${q.number}".`, { confirmLabel: 'Crear factura', danger: false }))) return;
+  try {
+    const inv = await createInvoice({
+      number: nextInvoiceNumber(),
+      company_id: q.company_id || null,
+      client_name: q.client_name, client_tax_id: q.client_tax_id || null,
+      client_address: q.client_address || null, client_email: q.client_email || null,
+      issue_date: todayISO(), due_date: null,
+      items: Array.isArray(q.items) ? q.items : [],
+      vat_rate: Number(q.vat_rate) || 0, irpf_rate: 0,
+      subtotal: Number(q.subtotal) || 0, vat_amount: Number(q.vat_amount) || 0,
+      irpf_amount: 0, total: Number(q.total) || 0,
+      status: 'pendiente', notes: q.notes || null
+    });
+    if (q.status !== 'aceptado') { try { await updateQuote(q.id, { status: 'aceptado' }); } catch (e) {} }
+    toast(`Factura ${inv.number} creada`);
+  } catch (err) {
+    toast(err.message || 'No se pudo crear la factura', 'err');
+  }
 }
 
 /* ---------- modal crear/editar ---------- */
