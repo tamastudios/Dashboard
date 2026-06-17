@@ -15,6 +15,7 @@ export const state = {
   quotes: [],
   invoices: [],
   supportRequests: [],
+  reservations: [],
   activity: [],
   notifications: [],
   prospects: [],     // prospectos guardados/vetados (módulo Prospector)
@@ -45,6 +46,7 @@ export const companyById = id => state.companies.find(c => c.id === id) || null;
 export const taskById = id => state.tasks.find(t => t.id === id) || null;
 export const invoiceById = id => state.invoices.find(i => i.id === id) || null;
 export const supportById = id => state.supportRequests.find(s => s.id === id) || null;
+export const reservationById = id => state.reservations.find(r => r.id === id) || null;
 export const leadById = id => state.leads.find(l => l.id === id) || null;
 export const quoteById = id => state.quotes.find(q => q.id === id) || null;
 
@@ -62,7 +64,7 @@ function removeLocal(list, id) {
    ============================================================ */
 export async function loadAll(user) {
   state.user = user;
-  const [profiles, companies, tasks, leads, quotes, invoices, support, activity, notifications] = await Promise.all([
+  const [profiles, companies, tasks, leads, quotes, invoices, support, reservations, activity, notifications] = await Promise.all([
     supabase.from('profiles').select('id,name,email,avatar_url,role,created_at').order('created_at'),
     supabase.from('companies').select('*').order('created_at', { ascending: false }),
     supabase.from('tasks').select('*').order('created_at', { ascending: false }),
@@ -70,6 +72,7 @@ export async function loadAll(user) {
     supabase.from('quotes').select('*').order('issue_date', { ascending: false }),
     supabase.from('invoices').select('*').order('issue_date', { ascending: false }),
     supabase.from('support_requests').select('*').order('created_at', { ascending: false }),
+    supabase.from('reservations').select('*').order('res_date', { ascending: true }),
     supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(80),
     supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(50)
   ]);
@@ -83,6 +86,7 @@ export async function loadAll(user) {
   state.quotes = quotes.error ? [] : quotes.data;                // tolera si aún no existe la tabla
   state.invoices = invoices.error ? [] : invoices.data;          // tolera si aún no existe la tabla
   state.supportRequests = support.error ? [] : support.data;     // tolera si aún no existe la tabla
+  state.reservations = reservations.error ? [] : reservations.data; // tolera si aún no existe la tabla
   state.activity = activity.data;
   state.notifications = notifications.error ? [] : notifications.data;  // tolera si aún no existe la tabla
   state.me = state.profiles.find(p => p.id === user.id) || null;
@@ -105,6 +109,7 @@ function subscribeRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'quotes' }, p => applyChange(state.quotes, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, p => applyChange(state.invoices, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'support_requests' }, p => applyChange(state.supportRequests, p))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, p => applyChange(state.reservations, p))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, p => {
       applyChange(state.profiles, p);
       if (state.user) state.me = state.profiles.find(x => x.id === state.user.id) || state.me;
@@ -147,7 +152,7 @@ export async function reconnect() {
 }
 
 async function refreshData() {
-  const [profiles, companies, tasks, leads, quotes, invoices, support, activity] = await Promise.all([
+  const [profiles, companies, tasks, leads, quotes, invoices, support, reservations, activity] = await Promise.all([
     supabase.from('profiles').select('id,name,email,avatar_url,role,created_at').order('created_at'),
     supabase.from('companies').select('*').order('created_at', { ascending: false }),
     supabase.from('tasks').select('*').order('created_at', { ascending: false }),
@@ -155,6 +160,7 @@ async function refreshData() {
     supabase.from('quotes').select('*').order('issue_date', { ascending: false }),
     supabase.from('invoices').select('*').order('issue_date', { ascending: false }),
     supabase.from('support_requests').select('*').order('created_at', { ascending: false }),
+    supabase.from('reservations').select('*').order('res_date', { ascending: true }),
     supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(80)
   ]);
   if (!profiles.error) state.profiles = profiles.data;
@@ -164,6 +170,7 @@ async function refreshData() {
   if (!quotes.error) state.quotes = quotes.data;
   if (!invoices.error) state.invoices = invoices.data;
   if (!support.error) state.supportRequests = support.data;
+  if (!reservations.error) state.reservations = reservations.data;
   if (!activity.error) state.activity = activity.data;
   if (state.user) state.me = state.profiles.find(p => p.id === state.user.id) || state.me;
   emit();
@@ -178,7 +185,7 @@ function applyChange(list, payload) {
 export function teardown() {
   if (channel) { supabase.removeChannel(channel); channel = null; }
   state.loaded = false;
-  state.profiles = []; state.companies = []; state.tasks = []; state.leads = []; state.quotes = []; state.invoices = []; state.supportRequests = []; state.activity = []; state.notifications = []; state.prospects = [];
+  state.profiles = []; state.companies = []; state.tasks = []; state.leads = []; state.quotes = []; state.invoices = []; state.supportRequests = []; state.reservations = []; state.activity = []; state.notifications = []; state.prospects = [];
   state.prospectsLoaded = false;
   state.user = null; state.me = null;
 }
@@ -407,6 +414,26 @@ export async function deleteQuote(id) {
   if (error) throw error;
   removeLocal(state.quotes, id); emit();
   logActivity('eliminó el presupuesto', 'quote', number);
+}
+
+/* ============================================================
+   RESERVAS (web + WhatsApp, una sola tabla)
+   ============================================================ */
+export async function updateReservation(id, fields) {
+  const { data, error } = await supabase.from('reservations')
+    .update({ ...fields, updated_at: new Date().toISOString() })
+    .eq('id', id).select().single();
+  if (error) throw error;
+  upsertLocal(state.reservations, data); emit();
+  logActivity('actualizó la reserva de', 'reservation', data.name);
+  return data;
+}
+export async function deleteReservation(id) {
+  const name = reservationById(id)?.name || '';
+  const { error } = await supabase.from('reservations').delete().eq('id', id);
+  if (error) throw error;
+  removeLocal(state.reservations, id); emit();
+  logActivity('eliminó la reserva de', 'reservation', name);
 }
 
 /* ============================================================
